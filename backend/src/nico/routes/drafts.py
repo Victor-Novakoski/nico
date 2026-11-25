@@ -13,11 +13,13 @@ from pydantic import BaseModel, StringConstraints
 
 from nico import dates, rules
 from nico.aliases import normalize
+from nico.auth import CurrentUser, current_user
 from nico.db import get_conn
 
 router = APIRouter(prefix="/api/drafts")
 
 Conn = Annotated[psycopg.Connection, Depends(get_conn)]
+User = Annotated[CurrentUser, Depends(current_user)]
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 Kind = Literal["credito", "debito", "pix", "dinheiro"]
 CASH_KINDS = {"debito", "pix", "dinheiro"}
@@ -34,11 +36,12 @@ class DraftOut(BaseModel):
     amount_cents: int
     method_id: str | None
     method_type: Kind | None
+    person_id: str
     purchase_date: str
     installments: int
     missing: list[str]
     # Campo -> "frase" (veio do texto) ou "padrao" (as regras assumiram o valor).
-    # Campo sem valor (descrição vazia, meio não reconhecido) não aparece.
+    # Campo sem valor (descrição vazia, meio não reconhecido, sem principal) não aparece.
     sources: dict[str, str]
 
 
@@ -85,8 +88,12 @@ def _date_in_text(segment: str, today) -> bool:
 
 
 @router.post("/parse")
-def parse_drafts(body: ParseIn, conn: Conn) -> ParseOut:
+def parse_drafts(body: ParseIn, conn: Conn, user: User) -> ParseOut:
     aliases, kinds = _load_aliases(conn)
+    row = conn.execute(
+        "select default_method_id::text from app_user where id = %s", (user.id,)
+    ).fetchone()
+    default_method_id = row[0] if row else None
     today = dates.today_sp()
     parsed = rules.parse_simple(body.text, aliases, today)
     if parsed is None:
@@ -94,11 +101,19 @@ def parse_drafts(body: ParseIn, conn: Conn) -> ParseOut:
     segments = _segments(body.text)
     drafts = []
     for draft, segment in zip(parsed, segments, strict=True):
-        kind = kinds.get(draft.card_id) if draft.card_id else None
+        method_id = draft.card_id
+        from_default = False
+        if method_id is None and default_method_id in kinds:
+            method_id = default_method_id
+            from_default = True
+        kind = kinds.get(method_id) if method_id else None
         installments = draft.installments
         missing = list(draft.missing)
         if "card_id" in missing:
-            missing[missing.index("card_id")] = "method_id"
+            if from_default:
+                missing.remove("card_id")
+            else:
+                missing[missing.index("card_id")] = "method_id"
         # Decisão 010: meio à vista não parcela; "Nx" na frase fica como dúvida.
         if kind in CASH_KINDS and installments > 1:
             installments = 1
@@ -106,8 +121,9 @@ def parse_drafts(body: ParseIn, conn: Conn) -> ParseOut:
         sources = {"amount_cents": "frase"}
         if draft.description:
             sources["description"] = "frase"
-        if draft.card_id:
-            sources["method_id"] = "frase"
+        if method_id:
+            sources["method_id"] = "padrao" if from_default else "frase"
+        sources["person_id"] = "padrao"
         sources["purchase_date"] = "frase" if _date_in_text(segment, today) else "padrao"
         has_times = bool(_INSTALLMENT_RE.search(segment))
         sources["installments"] = "frase" if has_times and installments > 1 else "padrao"
@@ -115,8 +131,9 @@ def parse_drafts(body: ParseIn, conn: Conn) -> ParseOut:
             DraftOut(
                 description=draft.description,
                 amount_cents=draft.amount_cents,
-                method_id=draft.card_id,
+                method_id=method_id,
                 method_type=kind,
+                person_id=user.person_id,
                 purchase_date=draft.purchase_date.isoformat(),
                 installments=installments,
                 missing=missing,
