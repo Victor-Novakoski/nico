@@ -25,7 +25,12 @@ npm --prefix web run lint && npm --prefix web run format:check
 npm --prefix web test && npm --prefix web run build
 ```
 
-Evals ainda não existem; os comandos entram aqui quando houver.
+Evals (a partir da raiz; `--set real` lê `evals/real/frases.jsonl`, fora do git, e nunca imprime as frases):
+
+```
+backend/.venv/bin/python -m nico.evals --set examples --provider rules
+backend/.venv/bin/python -m nico.evals --set examples --provider ollama --limit 10   # Ollama local
+```
 
 ## Como se orientar
 
