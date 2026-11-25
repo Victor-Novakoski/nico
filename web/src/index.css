@@ -17,3 +17,67 @@ body {
   padding: 16px;
   text-align: center;
 }
+
+.loading {
+  padding: 16px;
+  text-align: center;
+}
+
+.login {
+  box-sizing: border-box;
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 32px 16px;
+}
+
+.login form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+label {
+  font-weight: 600;
+}
+
+input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  font-size: 16px;
+  border: 1px solid #9ca3af;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+button {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 400px;
+  min-height: 52px;
+  padding: 8px 16px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #0f766e;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  color: #0f766e;
+  background: #ffffff;
+  border: 2px solid #0f766e;
+}
+
+.error {
+  margin: 0;
+  color: #b91c1c;
+}
