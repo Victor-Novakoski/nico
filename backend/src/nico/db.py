@@ -11,8 +11,12 @@ from nico import config
 
 
 def create_pool() -> ConnectionPool:
-    """Abre o pool a partir de DATABASE_URL (obrigatória só aqui)."""
-    return ConnectionPool(config.require("DATABASE_URL"), open=True)
+    """Abre o pool a partir de DATABASE_URL (obrigatória só aqui).
+
+    Pool pequeno de propósito: na hospedagem serverless cada instância abre o seu, e o
+    plano grátis do Neon limita conexões (o padrão do psycopg_pool abriria 4 de cara).
+    """
+    return ConnectionPool(config.require("DATABASE_URL"), min_size=1, max_size=4, open=True)
 
 
 @asynccontextmanager
