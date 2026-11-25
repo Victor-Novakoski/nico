@@ -38,6 +38,53 @@ def _find_or_create_invoice(
     return conn.execute(select, params).fetchone()[0]
 
 
+def _schedule(
+    conn: psycopg.Connection,
+    payment_method_id: UUID,
+    purchase_date: date,
+    total_cents: int,
+    installments: int,
+) -> list[tuple[billing.Invoice, int]]:
+    """Parcelas (vazio à vista); `ValueError` se o meio não existe ou é à vista parcelado."""
+    method = conn.execute(
+        "select kind, closing_day, due_day from payment_method where id = %s",
+        (payment_method_id,),
+    ).fetchone()
+    if method is None:
+        raise ValueError(f"meio de pagamento desconhecido: {payment_method_id}")
+    kind, closing_day, due_day = method
+    if kind in CASH_KINDS and installments != 1:
+        raise ValueError("compra à vista não tem parcelas (installments deve ser 1)")
+    if kind != "credito":
+        return []
+    return billing.installment_schedule(
+        billing.Card(closing_day, due_day), purchase_date, total_cents, installments
+    )
+
+
+def _insert_installments(
+    conn: psycopg.Connection,
+    purchase_id: UUID,
+    payment_method_id: UUID,
+    schedule: list[tuple[billing.Invoice, int]],
+) -> None:
+    for number, (invoice, amount) in enumerate(schedule, start=1):
+        invoice_id = _find_or_create_invoice(conn, payment_method_id, invoice)
+        conn.execute(
+            "insert into installment (purchase_id, invoice_id, number, amount_cents)"
+            " values (%s, %s, %s, %s)",
+            (purchase_id, invoice_id, number, amount),
+        )
+
+
+def _insert_shares(conn: psycopg.Connection, purchase_id: UUID, shares: dict[UUID, int]) -> None:
+    for person_id, weight in shares.items():
+        conn.execute(
+            "insert into purchase_share (purchase_id, person_id, weight) values (%s, %s, %s)",
+            (purchase_id, person_id, weight),
+        )
+
+
 def create_purchase(
     conn: psycopg.Connection,
     *,
@@ -72,21 +119,7 @@ def create_purchase(
     if any(isinstance(w, bool) or not isinstance(w, int) or w <= 0 for w in shares.values()):
         raise ValueError("os pesos devem ser inteiros positivos")
 
-    method = conn.execute(
-        "select kind, closing_day, due_day from payment_method where id = %s",
-        (payment_method_id,),
-    ).fetchone()
-    if method is None:
-        raise ValueError(f"meio de pagamento desconhecido: {payment_method_id}")
-    kind, closing_day, due_day = method
-    if kind in CASH_KINDS and installments != 1:
-        raise ValueError("compra à vista não tem parcelas (installments deve ser 1)")
-
-    schedule: list[tuple[billing.Invoice, int]] = []
-    if kind == "credito":
-        schedule = billing.installment_schedule(
-            billing.Card(closing_day, due_day), purchase_date, total_cents, installments
-        )
+    schedule = _schedule(conn, payment_method_id, purchase_date, total_cents, installments)
 
     inserted = conn.execute(
         "insert into purchase (id, description, total_cents, purchase_date, installments,"
@@ -107,18 +140,8 @@ def create_purchase(
     if inserted is None:
         return id
 
-    for number, (invoice, amount) in enumerate(schedule, start=1):
-        invoice_id = _find_or_create_invoice(conn, payment_method_id, invoice)
-        conn.execute(
-            "insert into installment (purchase_id, invoice_id, number, amount_cents)"
-            " values (%s, %s, %s, %s)",
-            (id, invoice_id, number, amount),
-        )
-    for person_id, weight in shares.items():
-        conn.execute(
-            "insert into purchase_share (purchase_id, person_id, weight) values (%s, %s, %s)",
-            (id, person_id, weight),
-        )
+    _insert_installments(conn, id, payment_method_id, schedule)
+    _insert_shares(conn, id, shares)
     return id
 
 
@@ -169,3 +192,80 @@ def get_purchase(conn: psycopg.Connection, id: UUID) -> dict[str, Any] | None:
         ).fetchall()
     )
     return result
+
+
+REBUILD_FIELDS = ("total_cents", "payment_method_id", "purchase_date", "installments")
+PLAIN_FIELDS = ("description", "status")
+
+
+def update_purchase(conn: psycopg.Connection, id: UUID, **changes: Any) -> bool:
+    """Edição parcial; `False` se a compra não existe. Não faz commit.
+
+    Aceita `description`, `status`, `total_cents`, `payment_method_id`, `purchase_date`,
+    `installments` e `shares` (`{person_id: weight}`; vazio vira quem lançou, peso 1). Mudar
+    valor, meio, data ou parcelas apaga as parcelas e as refaz, reaproveitando faturas já
+    existentes (que mantêm as datas gravadas, decisão 004); faturas que ficam sem parcela não
+    são apagadas. As mesmas validações da criação valem aqui (`ValueError`).
+    """
+    unknown = set(changes) - {*REBUILD_FIELDS, *PLAIN_FIELDS, "shares"}
+    if unknown:
+        raise ValueError(f"campos desconhecidos: {sorted(unknown)}")
+    row = conn.execute(
+        "select description, total_cents, purchase_date, installments, status,"
+        " payment_method_id, created_by_person_id from purchase where id = %s for update",
+        (id,),
+    ).fetchone()
+    if row is None:
+        return False
+    current = dict(
+        zip(
+            (
+                "description",
+                "total_cents",
+                "purchase_date",
+                "installments",
+                "status",
+                "payment_method_id",
+                "created_by_person_id",
+            ),
+            row,
+            strict=True,
+        )
+    )
+    merged = {**current, **{k: v for k, v in changes.items() if k != "shares"}}
+    if merged["status"] not in STATUSES:
+        raise ValueError(f"status deve ser um de {STATUSES}, recebido {merged['status']!r}")
+    shares = changes.get("shares")
+    if shares is not None:
+        shares = dict(shares) if shares else {current["created_by_person_id"]: 1}
+        if any(isinstance(w, bool) or not isinstance(w, int) or w <= 0 for w in shares.values()):
+            raise ValueError("os pesos devem ser inteiros positivos")
+
+    rebuild = any(k in changes and changes[k] != current[k] for k in REBUILD_FIELDS)
+    schedule = _schedule(
+        conn,
+        merged["payment_method_id"],
+        merged["purchase_date"],
+        merged["total_cents"],
+        merged["installments"],
+    )
+    conn.execute(
+        "update purchase set description = %s, total_cents = %s, purchase_date = %s,"
+        " installments = %s, status = %s, payment_method_id = %s where id = %s",
+        (
+            merged["description"],
+            merged["total_cents"],
+            merged["purchase_date"],
+            merged["installments"],
+            merged["status"],
+            merged["payment_method_id"],
+            id,
+        ),
+    )
+    if rebuild:
+        conn.execute("delete from installment where purchase_id = %s", (id,))
+        _insert_installments(conn, id, merged["payment_method_id"], schedule)
+    if shares is not None:
+        conn.execute("delete from purchase_share where purchase_id = %s", (id,))
+        _insert_shares(conn, id, shares)
+    return True
