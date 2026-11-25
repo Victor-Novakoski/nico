@@ -1,7 +1,7 @@
 # 003. Provedor de IA escolhido por variável de ambiente
 
 - **Data:** 2026-11-25
-- **Status:** ativa
+- **Status:** substituída pela 006
 
 ## Contexto
 

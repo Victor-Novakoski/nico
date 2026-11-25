@@ -16,7 +16,7 @@ Apps de finanças são ótimos para quem tem paciência de lançar cada gasto à
 
 ## Stack
 
-PWA em React + Vite + TypeScript · FastAPI e Pydantic (Python) · Groq (Whisper e extração) em produção e Ollama local nos testes · PostgreSQL no Neon · tudo em planos grátis.
+PWA em React + Vite + TypeScript · FastAPI e Pydantic (Python) · IA em cascata de provedores grátis (Groq, Cloudflare Workers AI, OpenRouter), com Ollama local nos testes · PostgreSQL no Neon · tudo em planos grátis.
 
 ## Primeira versão
 

@@ -4,7 +4,7 @@ App de gastos (PWA) em que a pessoa fala ou escreve os gastos do jeito que viere
 
 ## Stack
 
-PWA em React + Vite + TypeScript · um backend só em Python (FastAPI + Pydantic) · IA atrás de uma interface: Groq (Whisper e extração) em produção, Ollama local para desenvolver e para os evals · PostgreSQL no Neon · hospedagem grátis, a confirmar (ver `docs/decisoes/001`).
+PWA em React + Vite + TypeScript · um backend só em Python (FastAPI + Pydantic) · IA em cascata de provedores grátis: Groq, depois Cloudflare Workers AI e OpenRouter; Ollama local para desenvolver e para os evals · PostgreSQL no Neon · hospedagem grátis, a confirmar (ver `docs/decisoes/001`).
 
 ## Comandos
 
@@ -23,7 +23,7 @@ Ainda não há código. Quando houver, os comandos de dev, teste, lint e evals e
 - **A resposta da IA é uma lista**, mesmo com um gasto só. Cartão e pessoa vêm de uma lista fechada; ID que não existe é recusado no código.
 - **Fatura guarda as próprias datas** de fechamento e vencimento: mudar o dia do cartão não altera faturas passadas (decisão 004).
 - **Frases reais ficam fora do git** (decisão 005). Evals versionados usam só frases inventadas.
-- **Provedor de IA por variável de ambiente** (decisão 003). Planos grátis que treinam com os dados (Gemini grátis, Mistral Experiment) não entram.
+- **IA em cascata** (decisão 006): `AI_PROVIDERS` dá a ordem; se um provedor falhar (limite, erro, resposta inválida), o próximo tenta; se todos falharem, abre o formulário manual. Planos grátis que treinam com os dados (Gemini grátis, Mistral Experiment) não entram.
 - Textos para pessoas (telas, docs) em português do Brasil; código, arquivos e identificadores em inglês.
 
 ## Git e PR
