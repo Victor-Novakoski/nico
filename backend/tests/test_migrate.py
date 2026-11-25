@@ -25,12 +25,8 @@ TABLES = {
 
 
 @pytest.fixture
-def conn():
-    with psycopg.connect(URL, autocommit=True) as setup:
-        setup.execute("drop schema public cascade")
-        setup.execute("create schema public")
-    migrate(URL)
-    with psycopg.connect(URL, autocommit=True) as c:
+def conn(db_url):
+    with psycopg.connect(db_url, autocommit=True) as c:
         yield c
 
 

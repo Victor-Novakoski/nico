@@ -1,6 +1,6 @@
 # Backend (Python)
 
-Núcleo de cálculo do Nico. `src/nico/billing.py` é lógica pura (só stdlib); `app.py` é o app FastAPI (sem banco ainda, decisão 001) e `config.py` lê variáveis de ambiente.
+Núcleo de cálculo do Nico. `src/nico/billing.py` é lógica pura (só stdlib); `app.py` é o app FastAPI; `db.py` tem o pool (criado no `lifespan` se `DATABASE_URL` existir; sem ela o app sobe e `get_conn` responde 503) e a dependência `get_conn` e `config.py` lê variáveis de ambiente.
 
 ## Comandos
 
@@ -49,6 +49,7 @@ cd backend && DATABASE_URL=postgresql://nico@localhost:5433/nico .venv/bin/pytho
 
 - Migração já aplicada não se edita: crie a próxima (`002_...sql`). O arquivo é registrado pelo nome.
 - `invoice` só aceita meio de crédito por chave estrangeira composta `(payment_method_id, kind)`; `purchase`/`installment` não impõem isso no banco (quem grava parcelas só chama o cálculo para crédito).
+- Fixture `db_url` (`tests/conftest.py`): recria o schema, migra e devolve a URL; use nos testes de banco. Pula sem a variável.
 - O fixture de teste faz `drop schema public cascade`: use só o Postgres descartável, nunca um banco real.
 
 ## Ver também
