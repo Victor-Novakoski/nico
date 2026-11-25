@@ -8,7 +8,15 @@ PWA em React + Vite + TypeScript · um backend só em Python (FastAPI + Pydantic
 
 ## Comandos
 
-Ainda não há código. Quando houver, os comandos de dev, teste, lint e evals entram aqui.
+Backend (detalhes em `backend/CLAUDE.md`), a partir da raiz:
+
+```
+python3 -m venv backend/.venv && backend/.venv/bin/pip install -e "backend[dev]"
+backend/.venv/bin/pytest backend -q
+backend/.venv/bin/ruff check backend && backend/.venv/bin/ruff format --check backend
+```
+
+Frontend e evals ainda não existem; os comandos entram aqui quando houver.
 
 ## Como se orientar
 
