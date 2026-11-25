@@ -1,49 +1,55 @@
 import pytest
-from fastapi.testclient import TestClient
 
-from nico.app import app
-
-
-@pytest.fixture
-def client(db_url, monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", db_url)
-    with TestClient(app) as client:
-        yield client
+# `logged_client` (conftest) já cria e loga a usuária Fulana, que é uma pessoa da casa.
 
 
-def test_empty_list(client):
+def names(client) -> list[str]:
+    return [p["name"] for p in client.get("/api/people").json()]
+
+
+def test_requires_login(client):
+    assert client.get("/api/people").status_code == 401
+    assert client.post("/api/people", json={"name": "Ciclano"}).status_code == 401
+
+
+def test_list_starts_with_logged_person(logged_client):
+    client = logged_client
     response = client.get("/api/people")
     assert response.status_code == 200
-    assert response.json() == []
+    assert names(client) == ["Fulana"]
 
 
-def test_create_and_list(client):
-    response = client.post("/api/people", json={"name": "Fulana"})
+def test_create_and_list(logged_client):
+    client = logged_client
+    response = client.post("/api/people", json={"name": "Beltrano"})
     assert response.status_code == 201
     created = response.json()
-    assert created["name"] == "Fulana"
+    assert created["name"] == "Beltrano"
     assert created["id"]
-    assert client.get("/api/people").json() == [created]
+    assert created in client.get("/api/people").json()
 
 
-def test_list_is_sorted_by_name_ignoring_case(client):
-    for name in ["beltrano", "Fulana", "Ciclano"]:
+def test_list_is_sorted_by_name_ignoring_case(logged_client):
+    client = logged_client
+    for name in ["beltrano", "Ciclano", "ana"]:
         client.post("/api/people", json={"name": name})
-    names = [p["name"] for p in client.get("/api/people").json()]
-    assert names == ["beltrano", "Ciclano", "Fulana"]
+    assert names(client) == ["ana", "beltrano", "Ciclano", "Fulana"]
 
 
 @pytest.mark.parametrize("name", ["", "   ", "x" * 81])
-def test_invalid_name_is_422(client, name):
+def test_invalid_name_is_422(logged_client, name):
+    client = logged_client
     assert client.post("/api/people", json={"name": name}).status_code == 422
-    assert client.get("/api/people").json() == []
+    assert names(client) == ["Fulana"]
 
 
-def test_name_is_trimmed(client):
+def test_name_is_trimmed(logged_client):
+    client = logged_client
     response = client.post("/api/people", json={"name": "  Beltrano  "})
     assert response.status_code == 201
     assert response.json()["name"] == "Beltrano"
 
 
-def test_max_length_name_is_accepted(client):
+def test_max_length_name_is_accepted(logged_client):
+    client = logged_client
     assert client.post("/api/people", json={"name": "x" * 80}).status_code == 201
