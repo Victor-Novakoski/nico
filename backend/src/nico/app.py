@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 
-app = FastAPI(title="Nico")
+from nico.db import lifespan
+
+app = FastAPI(title="Nico", lifespan=lifespan)
 
 
 @app.get("/api/health")
