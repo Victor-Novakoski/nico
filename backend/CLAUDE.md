@@ -41,6 +41,10 @@ Não há tela de cadastro. Crie à mão (pede a senha duas vezes, mínimo 8 cara
 cd backend && DATABASE_URL=postgresql://nico@localhost:5433/nico .venv/bin/python -m nico.create_user <username> <nome da pessoa>
 ```
 
+## IA (decisão 006)
+
+`ai/schema.py` (o que a IA devolve e a conferência), `ai/cascade.py` (ordem e quando passar adiante), `ai/prompt.py` (contexto, prompt e schema iguais para todo provedor), `ai/http.py` (`call` traduz 429/5xx/tempo esgotado em `ProviderUnavailable` e 401/403/4xx em `ProviderConfigError`), `ai/registry.py` (nome em `AI_PROVIDERS` → `from_env()` do módulo, import tardio). Provedor novo: módulo `ai/<nome>.py` com uma classe e `from_env()`; testes com `httpx.MockTransport`, sem rede.
+
 ## Regras
 
 - Dinheiro sempre em centavos `int`, nunca `float`. Data e parcela são calculadas aqui, nunca pelo modelo de IA (decisão 002).
