@@ -2,7 +2,7 @@ from fastapi import Depends, FastAPI
 
 from nico.auth import current_user
 from nico.db import lifespan
-from nico.routes import payment_methods, people, session
+from nico.routes import payment_methods, people, session, settings
 
 app = FastAPI(title="Nico", lifespan=lifespan)
 
@@ -20,3 +20,4 @@ def health() -> dict[str, bool]:
 app.include_router(session.router)
 app.include_router(people.router, dependencies=PROTECTED)
 app.include_router(payment_methods.router, dependencies=PROTECTED)
+app.include_router(settings.router, dependencies=PROTECTED)
