@@ -83,3 +83,4 @@ Evals ainda não existem; os comandos entram aqui quando houver.
 - Doc passou de ~150 linhas? Divida por subtema e atualize o INDEX.
 - Decisão de arquitetura nova → arquivo novo em docs/decisoes/.
 - Se o código contradiz o doc, o código vale: corrija o doc e avise.
+- Faxina geral (skill `docs-projeto`, modo faxina) só no fim de cada marco, pela issue de faxina dele; não rode a skill a cada issue. No dia a dia basta o registro acima. Motivo: com muitos PRs pequenos, os docs ficam velhos aos poucos e só uma revisão do conjunto pega isso; rodar a skill a cada issue gasta tempo relendo o que acabou de ser escrito.

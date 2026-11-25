@@ -7,7 +7,7 @@ name = "nico"
 version = "0.1.0"
 description = "Backend do Nico: cálculo de faturas, parcelas e divisão por pessoa"
 requires-python = ">=3.12"
-dependencies = ["fastapi", "uvicorn", "pydantic", "psycopg[binary]", "psycopg-pool"]
+dependencies = ["fastapi", "uvicorn", "pydantic", "psycopg[binary]", "psycopg-pool", "httpx"]
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff", "httpx"]

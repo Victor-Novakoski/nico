@@ -43,6 +43,10 @@ cd backend && DATABASE_URL=postgresql://nico@localhost:5433/nico .venv/bin/pytho
 
 Login: `POST /api/login` grava o cookie `nico_session` (HttpOnly, Secure, SameSite=Lax, 30 dias), um token assinado com HMAC-SHA256 por `NICO_SECRET_KEY` (sem padrão; gere como no `.env.example`). `current_user` confere cookie e usuário no banco; rotas novas entram com `app.include_router(x.router, dependencies=PROTECTED)` (`app.py`) e um teste garante 401 sem cookie em toda rota `/api` fora `/api/health` e `/api/login`. O `person_id` do usuário logado é o autor dos lançamentos, nunca o corpo da requisição. O limite de 5 senhas erradas em 15 minutos por username fica em memória, por instância. Em teste de rota use `TestClient(app, base_url="https://testserver")` (cookie Secure) e o fixture `logged_client`.
 
+## IA (decisão 006)
+
+`ai/schema.py` (o que a IA devolve e a conferência), `ai/cascade.py` (ordem e quando passar adiante), `ai/prompt.py` (contexto, prompt e schema iguais para todo provedor), `ai/http.py` (`call` traduz 429/5xx/tempo esgotado em `ProviderUnavailable` e 401/403/4xx em `ProviderConfigError`), `ai/registry.py` (nome em `AI_PROVIDERS` → `from_env()` do módulo, import tardio). Provedor novo: módulo `ai/<nome>.py` com uma classe e `from_env()`; testes com `httpx.MockTransport`, sem rede.
+
 ## Regras
 
 - Dinheiro sempre em centavos `int`, nunca `float`. Data e parcela são calculadas aqui, nunca pelo modelo de IA (decisão 002).
