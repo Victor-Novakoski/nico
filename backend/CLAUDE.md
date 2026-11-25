@@ -25,6 +25,14 @@ docker compose down           # sem -v, para manter o volume
 
 Na CI, o job do backend sobe o mesmo Postgres como `services` e define a variável.
 
+## Migrações
+
+SQL puro em `backend/migrations/NNN_nome.sql`, aplicado em ordem por `python -m nico.migrate` (lê `DATABASE_URL`; cada arquivo numa transação, registrado em `schema_migrations`; rodar de novo não faz nada). Sem ORM.
+
+```
+cd backend && DATABASE_URL=postgresql://nico@localhost:5433/nico .venv/bin/python -m nico.migrate
+```
+
 ## Regras
 
 - Dinheiro sempre em centavos `int`, nunca `float`. Data e parcela são calculadas aqui, nunca pelo modelo de IA (decisão 002).
@@ -38,6 +46,10 @@ Na CI, o job do backend sobe o mesmo Postgres como `services` e define a variáv
 - Sobras da divisão por pessoa vão na ordem alfabética das chaves, não na de inserção.
 - Comparar as datas já ajustadas para decidir o mês do vencimento repete competência (fecha 28 e vence 31: fevereiro e março viravam março). O teste `test_consecutive_invoices_never_repeat_the_competence` pega isso; não o afrouxe.
 - Com `due_day > closing_day`, num mês curto fechamento e vencimento podem cair no mesmo dia (fecha 30 e vence 31 em fevereiro: os dois em 28/02).
+
+- Migração já aplicada não se edita: crie a próxima (`002_...sql`). O arquivo é registrado pelo nome.
+- `invoice` só aceita meio de crédito por chave estrangeira composta `(payment_method_id, kind)`; `purchase`/`installment` não impõem isso no banco (quem grava parcelas só chama o cálculo para crédito).
+- O fixture de teste faz `drop schema public cascade`: use só o Postgres descartável, nunca um banco real.
 
 ## Ver também
 
