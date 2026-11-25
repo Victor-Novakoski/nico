@@ -15,3 +15,5 @@
 | `docs/decisoes/006-cascata-de-provedores-de-ia.md` | for trocar de modelo, pôr ou tirar um provedor, mexer no que acontece quando a IA falha, ou rodar a IA local |
 | `docs/decisoes/007-modo-sem-ia-e-ordem-de-construcao.md` | for decidir o que construir primeiro, mexer no formulário, no parser de regras ou na opção de desligar a IA |
 | `docs/decisoes/008-regras-do-calculo-de-fatura.md` | for mexer em qual fatura a compra cai, no vencimento, nas parcelas ou na divisão por pessoa |
+| `docs/decisoes/009-meio-principal-e-de-quem-e.md` | for mexer no meio de pagamento padrão, na tela de conferência ou em quem fica com cada compra |
+| `docs/decisoes/010-credito-e-a-vista.md` | for mexer no cadastro de meios de pagamento, em débito, Pix, dinheiro ou no total do mês |

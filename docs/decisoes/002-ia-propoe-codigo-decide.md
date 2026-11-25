@@ -1,7 +1,7 @@
 # 002. A IA propõe, o código decide
 
 - **Data:** 2026-11-25
-- **Status:** ativa
+- **Status:** ativa (o item "de quem é" foi substituído pela 009)
 
 ## Contexto
 
