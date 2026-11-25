@@ -41,6 +41,8 @@ Não há tela de cadastro. Crie à mão (pede a senha duas vezes, mínimo 8 cara
 cd backend && DATABASE_URL=postgresql://nico@localhost:5433/nico .venv/bin/python -m nico.create_user <username> <nome da pessoa>
 ```
 
+Login: `POST /api/login` grava o cookie `nico_session` (HttpOnly, Secure, SameSite=Lax, 30 dias), um token assinado com HMAC-SHA256 por `NICO_SECRET_KEY` (sem padrão; gere como no `.env.example`). `current_user` confere cookie e usuário no banco; rotas novas entram com `app.include_router(x.router, dependencies=PROTECTED)` (`app.py`) e um teste garante 401 sem cookie em toda rota `/api` fora `/api/health` e `/api/login`. O `person_id` do usuário logado é o autor dos lançamentos, nunca o corpo da requisição. O limite de 5 senhas erradas em 15 minutos por username fica em memória, por instância. Em teste de rota use `TestClient(app, base_url="https://testserver")` (cookie Secure) e o fixture `logged_client`.
+
 ## Regras
 
 - Dinheiro sempre em centavos `int`, nunca `float`. Data e parcela são calculadas aqui, nunca pelo modelo de IA (decisão 002).
