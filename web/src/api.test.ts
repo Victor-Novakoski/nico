@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   UnauthorizedError,
+  addAlias,
   apiFetch,
+  createPaymentMethod,
+  listPaymentMethods,
+  listPeople,
   login,
   onUnauthorized,
 } from "./api";
@@ -61,8 +65,31 @@ describe("apiFetch", () => {
     expect(err.message).toBe("Muitas tentativas.");
   });
 
-  it("erro sem detail em texto usa a mensagem padrão", async () => {
-    mockFetch(reply(422, { detail: [{ msg: "x" }] }));
+  it("detail em lista junta as mensagens dos nossos validadores", async () => {
+    mockFetch(
+      reply(422, {
+        detail: [
+          { msg: "Value error, Dia inválido" },
+          { msg: "Value error, Nome vazio" },
+        ],
+      }),
+    );
+    const err = await thrown(apiFetch("/api/x"));
+    expect(err.message).toBe("Dia inválido Nome vazio");
+  });
+
+  it("mensagem padrão do Pydantic (em inglês) vira a de conferir os campos", async () => {
+    mockFetch(
+      reply(422, {
+        detail: [{ msg: "Input should be greater than or equal to 1" }, {}],
+      }),
+    );
+    const err = await thrown(apiFetch("/api/x"));
+    expect(err.message).toBe("Confira os campos e tente de novo.");
+  });
+
+  it("corpo sem detail usa a mensagem padrão", async () => {
+    mockFetch(reply(500, {}));
     const err = await thrown(apiFetch("/api/x"));
     expect(err.message).toBe("Algo deu errado. Tente de novo.");
   });
@@ -84,5 +111,37 @@ describe("login", () => {
       username: "ana",
       password: "errada",
     });
+  });
+});
+
+describe("meios de pagamento", () => {
+  it("lista meios e pessoas pelas rotas certas", async () => {
+    const fetchMock = mockFetch(reply(200, []));
+    await listPaymentMethods();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/payment-methods");
+    fetchMock.mockResolvedValue(reply(200, []));
+    await listPeople();
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/people");
+  });
+
+  it("cria meio com POST e corpo JSON", async () => {
+    const fetchMock = mockFetch(reply(201, { id: "m1" }));
+    await createPaymentMethod({ name: "Roxinho", owner_id: "p1", kind: "pix" });
+    const [path, init] = fetchMock.mock.calls[0];
+    expect(path).toBe("/api/payment-methods");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({
+      name: "Roxinho",
+      owner_id: "p1",
+      kind: "pix",
+    });
+  });
+
+  it("adiciona apelido em /aliases", async () => {
+    const fetchMock = mockFetch(reply(201, { id: "m1" }));
+    await addAlias("m1", "roxo");
+    const [path, init] = fetchMock.mock.calls[0];
+    expect(path).toBe("/api/payment-methods/m1/aliases");
+    expect(JSON.parse(init.body)).toEqual({ alias: "roxo" });
   });
 });
