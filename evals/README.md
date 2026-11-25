@@ -6,7 +6,7 @@ Frases com o rascunho esperado, para medir a IA a cada troca de prompt ou modelo
 
 - `examples/frases.jsonl`: 30 frases **inventadas** (pessoas, cartões e lojas fictícios), versionadas. A CI roda só estas.
 - `real/`: frases reais, no mesmo formato. **Fica fora do git** (está no `.gitignore`, decisão 005): nada de `real/` entra em commit.
-- O leitor do formato é `backend/src/nico/eval_cases.py`. O runner que chama os provedores e compara campo a campo vem na issue #41.
+- O leitor do formato é `backend/src/nico/eval_cases.py`. O runner que chama os provedores e compara campo a campo é `backend/src/nico/evals.py`.
 
 ## Formato
 
@@ -41,6 +41,21 @@ JSONL: um caso por linha, linhas em branco são ignoradas, campos desconhecidos 
 - "Metade é do Beltrano" hoje vira um item só com `person_id` do Beltrano: o schema da IA ainda não tem divisão entre pessoas. Quando tiver, estes casos (tag `metade`) mudam.
 - Valor por extenso ("cento e vinte") fica `amount_cents: null`, porque `parse_brl` não lê extenso (ideia #51).
 - `tags` dizem o que o caso testa (`virgula-decimal`, `milhar`, `parcelas`, `ontem`, `dia-n`, `dois-gastos`, `pessoa`, `sem-meio`, `sem-valor`...).
+
+## Como rodar
+
+A partir da raiz, com o venv do backend:
+
+```
+backend/.venv/bin/python -m nico.evals --set examples --provider rules
+backend/.venv/bin/python -m nico.evals --set examples --provider ollama --limit 10
+backend/.venv/bin/python -m nico.evals --set real --provider groq
+```
+
+- `--set examples` usa `examples/frases.jsonl`; `--set real` usa `real/frases.jsonl` (fora do git). `--provider` aceita `rules` (padrão), `ollama`, `groq`, `cloudflare` e `openrouter`; os de IA leem as variáveis de ambiente do próprio provedor. `--limit N` roda só os N primeiros casos.
+- O relatório mostra acerto por campo, acerto exato (todos os campos menos a descrição), casos com número de rascunhos errado, falhas, tempo médio e a lista de casos com problema.
+- A comparação alinha por posição (o 1º rascunho esperado contra o 1º previsto). A descrição é aproximada: vale se uma contém a outra, sem acento nem maiúscula.
+- Com `--set real`, o relatório só mostra ids de casos e nomes de campos, nunca a frase nem a descrição. Falha de provedor aparece só pelo nome do tipo do erro.
 
 ## Validar
 
