@@ -16,7 +16,16 @@ backend/.venv/bin/pytest backend -q
 backend/.venv/bin/ruff check backend && backend/.venv/bin/ruff format --check backend
 ```
 
-Frontend e evals ainda não existem; os comandos entram aqui quando houver.
+Web (`web/`, Node 22), a partir da raiz:
+
+```
+npm --prefix web ci
+npm --prefix web run dev      # proxy de /api para localhost:8000
+npm --prefix web run lint && npm --prefix web run format:check
+npm --prefix web test && npm --prefix web run build
+```
+
+Evals ainda não existem; os comandos entram aqui quando houver.
 
 ## Como se orientar
 
