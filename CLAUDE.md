@@ -46,6 +46,7 @@ Evals ainda não existem; os comandos entram aqui quando houver.
 - **A IA propõe, o código decide** (decisão 002). A IA só extrai os campos da frase. Valor em centavos inteiros, datas, parcelas, faturas e totais são calculados por código, nunca pelo modelo.
 - **Nada é salvo sem passar pela pessoa.** O lançamento entra como "pendente" ou "conferido"; a IA nunca grava direto como certo.
 - **A resposta da IA é uma lista**, mesmo com um gasto só. Cartão e pessoa vêm de uma lista fechada; ID que não existe é recusado no código.
+- **Crédito tem fatura; débito, Pix e dinheiro são à vista** (decisão 010). Sem meio na frase, entra o principal da pessoa, sempre marcado como padrão; "de quem é" padrão é quem lançou (decisão 009).
 - **Fatura guarda as próprias datas** de fechamento e vencimento: mudar o dia do cartão não altera faturas passadas (decisão 004).
 - **Frases reais ficam fora do git** (decisão 005). Evals versionados usam só frases inventadas.
 - **O app funciona sem IA** (decisão 007): formulário rápido e parser de regras para frases simples. A IA é opcional, desligável por pessoa, e só recebe o que o parser não entendeu. Construir o núcleo sem IA primeiro.

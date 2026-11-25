@@ -1,7 +1,7 @@
 # 004. Fatura com datas gravadas, parcelas e total por pessoa
 
 - **Data:** 2026-11-25
-- **Status:** ativa
+- **Status:** ativa (o cadastro de cartão virou meio de pagamento na 010)
 
 ## Contexto
 
