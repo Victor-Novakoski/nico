@@ -23,6 +23,7 @@ Ainda não há código. Quando houver, os comandos de dev, teste, lint e evals e
 - **A resposta da IA é uma lista**, mesmo com um gasto só. Cartão e pessoa vêm de uma lista fechada; ID que não existe é recusado no código.
 - **Fatura guarda as próprias datas** de fechamento e vencimento: mudar o dia do cartão não altera faturas passadas (decisão 004).
 - **Frases reais ficam fora do git** (decisão 005). Evals versionados usam só frases inventadas.
+- **O app funciona sem IA** (decisão 007): formulário rápido e parser de regras para frases simples. A IA é opcional, desligável por pessoa, e só recebe o que o parser não entendeu. Construir o núcleo sem IA primeiro.
 - **IA em cascata** (decisão 006): `AI_PROVIDERS` dá a ordem; se um provedor falhar (limite, erro, resposta inválida), o próximo tenta; se todos falharem, abre o formulário manual. Planos grátis que treinam com os dados (Gemini grátis, Mistral Experiment) não entram.
 - Textos para pessoas (telas, docs) em português do Brasil; código, arquivos e identificadores em inglês.
 

@@ -12,6 +12,7 @@ Apps de finanças são ótimos para quem tem paciência de lançar cada gasto à
 
 - **Lançar em segundos, por voz ou texto, vários gastos de uma vez:** "120 no mercado no cartão X em 3x, 15 de pão no débito e 30 de Uber, esse é meu".
 - **A IA só propõe.** Ela devolve a lista de lançamentos; a pessoa confere na hora ou deixa como pendente para conferir depois. Valores, datas, parcelas e totais são sempre calculados por código.
+- **Funciona sem IA:** quem preferir lança por um formulário rápido ou por uma frase curta ("120 mercado nubank 3x"), que regras simples entendem. A IA é opcional.
 - **Fatura de verdade:** cada cartão com dia de fechamento e vencimento, parcelas espalhadas nos meses certos e o total de cada pessoa, para comparar com o app do banco.
 
 ## Stack
