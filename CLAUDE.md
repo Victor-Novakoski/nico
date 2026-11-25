@@ -24,6 +24,14 @@ Frontend e evals ainda não existem; os comandos entram aqui quando houver.
 - Tarefas abertas são issues do GitHub (etiquetas `prioridade` e `ideia`).
 - O porquê das escolhas está em `docs/decisoes/`; a pesquisa de projetos parecidos, em `docs/PESQUISA.md`.
 
+## Como as tarefas andam
+
+- Todo trabalho é uma issue pequena, no formato do modelo `.github/ISSUE_TEMPLATE/tarefa.md`: objetivo, arquivos, o que fazer, como testar, pronta quando, depende de. Cada uma cabe em 2 a 3 minutos de um subagente.
+- **Tarefa grande demais:** antes de começar, quebre em issues menores no mesmo formato; a grande vira só uma lista que aponta para as pequenas.
+- Etapas são os marcos (1. Núcleo sem IA, 2. App no celular, 3. IA opcional, 4. No ar, Depois). `prioridade` marca as próximas; `subagente` marca as que um subagente faz sozinho; `precisa do victor` marca o que só o dono faz (conta, senha, dado real).
+- Pegue só issues cujas dependências já estão fechadas. Issues sem dependência entre si e sem arquivos em comum podem rodar em paralelo.
+- A sessão principal planeja, cria as issues, revisa o diff e roda os testes antes de cada PR. Um PR por issue, com `Closes #N`.
+
 ## Regras gerais (não quebrar)
 
 - **A IA propõe, o código decide** (decisão 002). A IA só extrai os campos da frase. Valor em centavos inteiros, datas, parcelas, faturas e totais são calculados por código, nunca pelo modelo.
