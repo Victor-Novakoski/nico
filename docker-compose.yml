@@ -1,0 +1,24 @@
+# Postgres descartável só para os testes de banco, local.
+# Sem senha (trust), por isso só escuta em 127.0.0.1: nada de fora da máquina conecta.
+# Porta 5433 para não bater com outros Postgres. Nunca use em produção.
+name: nico
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: nico
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: nico
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - nico_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nico -d nico"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  nico_pgdata:

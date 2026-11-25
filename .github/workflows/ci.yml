@@ -9,6 +9,23 @@ jobs:
   backend:
     name: Backend (lint e testes)
     runs-on: ubuntu-latest
+    env:
+      # Postgres descartável do job, sem senha (trust); só existe durante a CI.
+      NICO_TEST_DATABASE_URL: postgresql://nico@localhost:5432/nico
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nico
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: nico
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nico -d nico"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
