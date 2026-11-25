@@ -47,6 +47,7 @@ def test_simple_sentence_with_alias(logged_client):
             "amount_cents": 12000,
             "method_id": method["id"],
             "method_type": "credito",
+            "person_id": logged_client.get("/api/me").json()["person_id"],
             "purchase_date": "2026-11-25",
             "installments": 3,
             "missing": [],
@@ -54,6 +55,7 @@ def test_simple_sentence_with_alias(logged_client):
                 "amount_cents": "frase",
                 "description": "frase",
                 "method_id": "frase",
+                "person_id": "padrao",
                 "purchase_date": "padrao",
                 "installments": "frase",
             },
@@ -99,6 +101,69 @@ def test_cash_method_with_installments_is_doubtful(logged_client):
     assert draft["installments"] == 1
     assert "installments" in draft["missing"]
     assert draft["sources"]["installments"] == "padrao"
+
+
+def set_default(client, method_id):
+    response = client.patch("/api/me/settings", json={"default_method_id": method_id})
+    assert response.status_code == 200
+
+
+def test_default_method_fills_missing_method(logged_client):
+    method = create_method(logged_client, "Cartão Roxo", "credito")
+    set_default(logged_client, method["id"])
+    draft = parse(logged_client, "40 padaria")["drafts"][0]
+    assert draft["method_id"] == method["id"]
+    assert draft["method_type"] == "credito"
+    assert draft["sources"]["method_id"] == "padrao"
+    assert "method_id" not in draft["missing"]
+
+
+def test_without_default_method_stays_missing(logged_client):
+    create_method(logged_client, "Cartão Roxo", "credito")
+    draft = parse(logged_client, "40 padaria")["drafts"][0]
+    assert draft["method_id"] is None
+    assert draft["method_type"] is None
+    assert "method_id" in draft["missing"]
+    assert "method_id" not in draft["sources"]
+
+
+def test_method_from_sentence_beats_default(logged_client):
+    roxo = create_method(logged_client, "Cartão Roxo", "credito", alias="roxo")
+    pix = create_method(logged_client, "Pix da casa", "pix")
+    set_default(logged_client, pix["id"])
+    draft = parse(logged_client, "40 padaria no roxo")["drafts"][0]
+    assert draft["method_id"] == roxo["id"]
+    assert draft["method_type"] == "credito"
+    assert draft["sources"]["method_id"] == "frase"
+    assert "method_id" not in draft["missing"]
+
+
+def test_cash_default_with_installments_is_doubtful(logged_client):
+    pix = create_method(logged_client, "Pix da casa", "pix")
+    set_default(logged_client, pix["id"])
+    draft = parse(logged_client, "90 sapato 3x")["drafts"][0]
+    assert draft["method_id"] == pix["id"]
+    assert draft["method_type"] == "pix"
+    assert draft["installments"] == 1
+    assert "installments" in draft["missing"]
+    assert draft["sources"]["installments"] == "padrao"
+
+
+def test_person_is_logged_user_marked_default(logged_client):
+    person_id = logged_client.get("/api/me").json()["person_id"]
+    draft = parse(logged_client, "40 padaria")["drafts"][0]
+    assert draft["person_id"] == person_id
+    assert draft["sources"]["person_id"] == "padrao"
+
+
+def test_every_default_value_is_marked(logged_client):
+    method = create_method(logged_client, "Cartão Roxo", "credito")
+    set_default(logged_client, method["id"])
+    for text in ["40 padaria", "40 padaria ontem", "40 padaria 2x"]:
+        draft = parse(logged_client, text)["drafts"][0]
+        for field in ["amount_cents", "method_id", "person_id", "purchase_date", "installments"]:
+            assert draft[field] is not None
+            assert field in draft["sources"], field
 
 
 def test_not_understood(logged_client):
