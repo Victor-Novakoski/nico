@@ -12,6 +12,19 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/uvicorn nico.app:app --reload   # roda local; teste: curl localhost:8000/api/health
 ```
 
+## Banco de teste
+
+Os testes de banco usam um Postgres descartável, lido de `NICO_TEST_DATABASE_URL`. Sem a variável, esses testes são pulados (o resto roda normal).
+
+```
+docker compose up -d          # na raiz; Postgres 17 na porta 5433, volume nico_pgdata
+export NICO_TEST_DATABASE_URL=postgresql://nico@localhost:5433/nico   # só de teste local
+backend/.venv/bin/pytest backend -q
+docker compose down           # sem -v, para manter o volume
+```
+
+Na CI, o job do backend sobe o mesmo Postgres como `services` e define a variável.
+
 ## Regras
 
 - Dinheiro sempre em centavos `int`, nunca `float`. Data e parcela são calculadas aqui, nunca pelo modelo de IA (decisão 002).
