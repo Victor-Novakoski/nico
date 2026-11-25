@@ -17,3 +17,4 @@
 | `docs/decisoes/008-regras-do-calculo-de-fatura.md` | for mexer em qual fatura a compra cai, no vencimento, nas parcelas ou na divisão por pessoa |
 | `docs/decisoes/009-meio-principal-e-de-quem-e.md` | for mexer no meio de pagamento padrão, na tela de conferência ou em quem fica com cada compra |
 | `docs/decisoes/010-credito-e-a-vista.md` | for mexer no cadastro de meios de pagamento, em débito, Pix, dinheiro ou no total do mês |
+| `docs/decisoes/011-categorias-em-dois-niveis.md` | for mexer em categorias, sugestão de categoria ou no resumo do mês por categoria |
