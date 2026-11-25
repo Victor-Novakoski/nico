@@ -33,6 +33,14 @@ SQL puro em `backend/migrations/NNN_nome.sql`, aplicado em ordem por `python -m 
 cd backend && DATABASE_URL=postgresql://nico@localhost:5433/nico .venv/bin/python -m nico.migrate
 ```
 
+## Usuários
+
+Não há tela de cadastro. Crie à mão (pede a senha duas vezes, mínimo 8 caracteres; nunca por argumento). A pessoa é criada se ainda não existir. A senha é guardada com scrypt (`nico.auth`, parâmetros dentro do hash).
+
+```
+cd backend && DATABASE_URL=postgresql://nico@localhost:5433/nico .venv/bin/python -m nico.create_user <username> <nome da pessoa>
+```
+
 ## Regras
 
 - Dinheiro sempre em centavos `int`, nunca `float`. Data e parcela são calculadas aqui, nunca pelo modelo de IA (decisão 002).
