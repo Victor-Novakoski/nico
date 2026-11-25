@@ -57,4 +57,24 @@ describe("App", () => {
       expect.objectContaining({ method: "POST" }),
     );
   });
+
+  it("abre a tela de meios de pagamento pelo menu", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((path: string) =>
+        Promise.resolve(
+          path === "/api/me"
+            ? jsonResponse(200, { username: "ana", person_id: "p1" })
+            : jsonResponse(200, []),
+        ),
+      ),
+    );
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Meios de pagamento" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Meios de pagamento" }),
+    ).toBeInTheDocument();
+  });
 });

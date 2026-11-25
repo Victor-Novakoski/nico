@@ -1,4 +1,5 @@
 const GENERIC_ERROR = "Algo deu errado. Tente de novo.";
+const INVALID_FIELDS = "Confira os campos e tente de novo.";
 
 export type User = { username: string; person_id: string };
 
@@ -29,7 +30,17 @@ type ApiOptions = { handleUnauthorized?: boolean };
 async function errorDetail(res: Response): Promise<string> {
   try {
     const data = await res.json();
-    if (typeof data?.detail === "string") return data.detail;
+    const detail = data?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      // Só as mensagens dos nossos validadores ("Value error, ...") estão em
+      // português; as padrão do Pydantic vêm em inglês e viram a genérica.
+      const msgs = detail
+        .map((d) => (typeof d?.msg === "string" ? d.msg : ""))
+        .filter((m) => m.startsWith("Value error, "))
+        .map((m) => m.replace(/^Value error, /, ""));
+      return msgs.length > 0 ? msgs.join(" ") : INVALID_FIELDS;
+    }
   } catch {
     // corpo vazio ou não é JSON
   }
@@ -80,4 +91,50 @@ export function me(): Promise<User> {
 
 export function logout(): Promise<void> {
   return apiFetch<void>("/api/logout", { method: "POST" });
+}
+
+export type Kind = "credito" | "debito" | "pix" | "dinheiro";
+
+export type PaymentMethod = {
+  id: string;
+  name: string;
+  owner_id: string;
+  kind: Kind;
+  closing_day: number | null;
+  due_day: number | null;
+  aliases: string[];
+};
+
+export type Person = { id: string; name: string };
+
+export type NewPaymentMethod = {
+  name: string;
+  owner_id: string;
+  kind: Kind;
+  closing_day?: number;
+  due_day?: number;
+};
+
+export function listPaymentMethods(): Promise<PaymentMethod[]> {
+  return apiFetch<PaymentMethod[]>("/api/payment-methods");
+}
+
+export function createPaymentMethod(
+  data: NewPaymentMethod,
+): Promise<PaymentMethod> {
+  return apiFetch<PaymentMethod>("/api/payment-methods", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function addAlias(id: string, alias: string): Promise<PaymentMethod> {
+  return apiFetch<PaymentMethod>(
+    `/api/payment-methods/${encodeURIComponent(id)}/aliases`,
+    { method: "POST", body: JSON.stringify({ alias }) },
+  );
+}
+
+export function listPeople(): Promise<Person[]> {
+  return apiFetch<Person[]>("/api/people");
 }
