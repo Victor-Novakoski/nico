@@ -1,6 +1,6 @@
 # Backend (Python)
 
-Núcleo de cálculo do Nico. Hoje só `src/nico/billing.py` (lógica pura, só stdlib); FastAPI entra depois.
+Núcleo de cálculo do Nico. `src/nico/billing.py` é lógica pura (só stdlib); `app.py` é o app FastAPI (sem banco ainda, decisão 001) e `config.py` lê variáveis de ambiente.
 
 ## Comandos
 
@@ -9,6 +9,7 @@ cd backend
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest -q
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
+.venv/bin/uvicorn nico.app:app --reload   # roda local; teste: curl localhost:8000/api/health
 ```
 
 ## Regras
