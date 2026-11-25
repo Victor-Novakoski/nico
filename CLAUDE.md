@@ -41,6 +41,14 @@ Evals ainda não existem; os comandos entram aqui quando houver.
 - Pegue só issues cujas dependências já estão fechadas. Issues sem dependência entre si e sem arquivos em comum podem rodar em paralelo.
 - A sessão principal planeja, cria as issues, revisa o diff e roda os testes antes de cada PR. Um PR por issue, com `Closes #N`.
 
+### Subagentes em paralelo
+
+- **Uma worktree por issue:** `git worktree add ~/projects/nico-wt/issue-N -b <tipo>/<nome> develop`. Cada subagente trabalha só na sua pasta e faz um commit, sem push; a sessão principal revisa, envia e abre o PR. Depois do merge: `git worktree remove` e apagar a branch local.
+- **Um banco de teste por subagente:** a sessão principal sobe o Postgres (`docker compose up -d --wait`) e cria `nico_tN` com `docker compose exec -T db createdb -U nico nico_tN`; cada subagente usa só `NICO_TEST_DATABASE_URL=postgresql://nico@localhost:5433/nico_tN` e não roda `docker compose up/down`. Os testes recriam o schema, então dois agentes no mesmo banco se atropelam. No fim, `dropdb` e `docker compose down`.
+- **Merge um PR por vez** e confira `gh pr view N --json state` = `MERGED` antes de fechar a issue. Dois PRs que mexem no mesmo arquivo (ex.: lista de dependências do `backend/pyproject.toml`) dão conflito: traga a `develop` para a branch, resolva, rode os testes, espere a CI.
+- **`Closes #N` não fecha a issue** quando o PR entra na `develop` (só na branch padrão, `main`): feche à mão com `gh issue close N --comment "Feito no #PR (na develop)."`.
+- Depois de cada leva, rode tudo na `develop` atualizada, com o banco ligado, e confira a CI da `develop`.
+
 ## Regras gerais (não quebrar)
 
 - **A IA propõe, o código decide** (decisão 002). A IA só extrai os campos da frase. Valor em centavos inteiros, datas, parcelas, faturas e totais são calculados por código, nunca pelo modelo.
