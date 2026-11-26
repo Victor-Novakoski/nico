@@ -142,3 +142,53 @@ button.secondary {
 .methods .alias-form {
   margin-top: 8px;
 }
+
+.entry {
+  box-sizing: border-box;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.entry form,
+.draft-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.entry textarea,
+.entry select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 16px;
+  border: 1px solid #9ca3af;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: #ffffff;
+}
+
+.entry select {
+  min-height: 48px;
+}
+
+.drafts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+  margin: 16px 0 0;
+  list-style: none;
+}
+
+.draft-card {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.hint {
+  margin-top: -8px;
+  color: #92400e;
+}

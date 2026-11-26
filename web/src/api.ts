@@ -138,3 +138,50 @@ export function addAlias(id: string, alias: string): Promise<PaymentMethod> {
 export function listPeople(): Promise<Person[]> {
   return apiFetch<Person[]>("/api/people");
 }
+
+export type DraftSources = Record<string, "frase" | "padrao">;
+
+export type Draft = {
+  description: string;
+  amount_cents: number;
+  method_id: string | null;
+  method_type: Kind | null;
+  person_id: string;
+  purchase_date: string;
+  installments: number;
+  missing: string[];
+  sources: DraftSources;
+};
+
+export type ParseResult = {
+  understood: boolean;
+  drafts: Draft[];
+  fallback?: string;
+};
+
+export function parseDrafts(text: string): Promise<ParseResult> {
+  return apiFetch<ParseResult>("/api/drafts/parse", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
+export type PurchaseStatus = "pendente" | "conferido";
+
+export type NewPurchase = {
+  id: string;
+  payment_method_id: string;
+  description: string;
+  total_cents: number;
+  purchase_date: string;
+  installments: number;
+  status: PurchaseStatus;
+  shares?: { person_id: string; weight: number }[];
+};
+
+export function createPurchase(data: NewPurchase): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>("/api/purchases", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}

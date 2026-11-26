@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { logout, me, onUnauthorized } from "./api";
+import { Entry } from "./pages/Entry";
 import { Login } from "./pages/Login";
 import { PaymentMethods } from "./pages/PaymentMethods";
 
@@ -8,11 +9,11 @@ type State =
   | { status: "out" }
   | { status: "in"; username: string; personId: string | null };
 
-type Page = "home" | "payment-methods";
+type Page = "entry" | "payment-methods";
 
 export function App() {
   const [state, setState] = useState<State>({ status: "loading" });
-  const [page, setPage] = useState<Page>("home");
+  const [page, setPage] = useState<Page>("entry");
 
   useEffect(() => {
     onUnauthorized(() => setState({ status: "out" }));
@@ -42,7 +43,7 @@ export function App() {
       // sem sessão ou sem rede: volta ao login mesmo assim
     }
     setState({ status: "out" });
-    setPage("home");
+    setPage("entry");
   }
 
   if (state.status === "loading") return <p className="loading">Carregando…</p>;
@@ -70,11 +71,11 @@ export function App() {
       <nav className="nav">
         <button
           type="button"
-          className={page === "home" ? "" : "secondary"}
-          aria-current={page === "home" ? "page" : undefined}
-          onClick={() => setPage("home")}
+          className={page === "entry" ? "" : "secondary"}
+          aria-current={page === "entry" ? "page" : undefined}
+          onClick={() => setPage("entry")}
         >
-          Início
+          Lançar
         </button>
         <button
           type="button"
@@ -88,10 +89,7 @@ export function App() {
       {page === "payment-methods" ? (
         <PaymentMethods personId={state.personId} />
       ) : (
-        <main className="home">
-          <h1>Olá, {state.username}</h1>
-          <p>Seus gastos do jeito que vierem.</p>
-        </main>
+        <Entry personId={state.personId} />
       )}
       <div className="logout">
         <button type="button" className="secondary" onClick={handleLogout}>
