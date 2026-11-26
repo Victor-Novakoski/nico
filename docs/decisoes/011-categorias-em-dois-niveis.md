@@ -1,7 +1,7 @@
 # 011. Categorias em dois níveis, opcionais e sugeridas pelo histórico
 
 - **Data:** 2026-11-25
-- **Status:** ativa
+- **Status:** ativa (o "criadas pela casa" foi ajustado pela 013: categorias pertencem a uma pessoa ou a um grupo)
 
 ## Contexto
 
