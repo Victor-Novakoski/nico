@@ -11,10 +11,11 @@ import re
 from typing import Annotated, Literal
 
 import psycopg
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel, StringConstraints
 
 from nico import config, dates, rules
+from nico.ai.audio import MAX_AUDIO_BYTES, AudioRejected, check_audio
 from nico.ai.base import AllProvidersFailed, ProviderConfigError
 from nico.ai.cascade import Cascade, build_cascade
 from nico.ai.prompt import ExtractionContext
@@ -78,6 +79,11 @@ class ParseOut(BaseModel):
     fallback: Literal["form"] | None = None
 
 
+class AudioOut(ParseOut):
+    # O que foi entendido do áudio, para a pessoa conferir; None se ninguém transcreveu.
+    transcript: str | None = None
+
+
 def _load_aliases(conn: psycopg.Connection) -> tuple[dict[str, str], dict[str, str]]:
     """({apelido: id do meio}, {id do meio: tipo}).
 
@@ -117,6 +123,44 @@ def _date_in_text(segment: str, today) -> bool:
 
 @router.post("/parse")
 def parse_drafts(body: ParseIn, conn: Conn, user: User, cascade: Ai) -> ParseOut:
+    return _parse_text(body.text, conn, user, cascade)
+
+
+@router.post("/audio")
+def parse_audio(file: UploadFile, conn: Conn, user: User, cascade: Ai) -> AudioOut:
+    """Áudio, transcrição pela cascata, mesmo caminho de `/parse`. Nada é guardado nem logado."""
+    audio = file.file.read(MAX_AUDIO_BYTES + 1)
+    try:
+        mime = check_audio(audio, file.content_type or "")
+    except AudioRejected as error:
+        too_big = len(audio) > MAX_AUDIO_BYTES
+        messages = {
+            "formato de áudio não aceito": "Formato de áudio não aceito.",
+            "áudio vazio": "O áudio veio vazio.",
+        }
+        message = (
+            "O áudio passa de 4 MB." if too_big else messages.get(str(error), "Áudio inválido.")
+        )
+        status = 413 if too_big else 422
+        raise HTTPException(status_code=status, detail=message) from error
+    row = conn.execute("select ai_enabled from app_user where id = %s", (user.id,)).fetchone()
+    if not (row and row[0]) or cascade is None:
+        return AudioOut(understood=False, drafts=[], fallback="form")
+    try:
+        _, transcript = cascade.transcribe(audio, mime)
+    except AllProvidersFailed:
+        return AudioOut(understood=False, drafts=[], fallback="form")
+    except ProviderConfigError:
+        logger.error("provedor de IA com configuração inválida")
+        return AudioOut(understood=False, drafts=[], fallback="form")
+    transcript = transcript.strip()[:500]
+    result = _parse_text(transcript, conn, user, cascade)
+    return AudioOut(**result.model_dump(), transcript=transcript)
+
+
+def _parse_text(
+    text: str, conn: psycopg.Connection, user: CurrentUser, cascade: Cascade | None
+) -> ParseOut:
     aliases, kinds = _load_aliases(conn)
     row = conn.execute(
         "select default_method_id::text, ai_enabled from app_user where id = %s", (user.id,)
@@ -124,14 +168,14 @@ def parse_drafts(body: ParseIn, conn: Conn, user: User, cascade: Ai) -> ParseOut
     default_method_id = row[0] if row else None
     ai_enabled = bool(row[1]) if row else False
     today = dates.today_sp()
-    parsed = rules.parse_simple(body.text, aliases, today)
+    parsed = rules.parse_simple(text, aliases, today)
     if parsed is None:
         if ai_enabled and cascade is not None:
             return _parse_with_ai(
-                body.text, cascade, conn, aliases, kinds, default_method_id, user, today
+                text, cascade, conn, aliases, kinds, default_method_id, user, today
             )
         return ParseOut(understood=False, drafts=[], fallback="form")
-    segments = _segments(body.text)
+    segments = _segments(text)
     drafts = []
     for draft, segment in zip(parsed, segments, strict=True):
         method_id = draft.card_id
