@@ -9,11 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 
 from nico import billing, dates
+from nico.auth import CurrentUser, current_user
 from nico.db import get_conn
 
 router = APIRouter(prefix="/api/payment-methods")
 
 Conn = Annotated[psycopg.Connection, Depends(get_conn)]
+User = Annotated[CurrentUser, Depends(current_user)]
 
 
 class InvoiceItem(BaseModel):
@@ -40,9 +42,12 @@ class InvoiceOut(BaseModel):
     items: list[InvoiceItem]
 
 
-def _card(conn: psycopg.Connection, method_id: UUID) -> billing.Card:
+def _card(conn: psycopg.Connection, method_id: UUID, me: str) -> billing.Card:
+    """Só o dono do meio vê a fatura; outra pessoa recebe 404, como se o meio não existisse."""
     row = conn.execute(
-        "select kind, closing_day, due_day from payment_method where id = %s", (method_id,)
+        "select kind, closing_day, due_day from payment_method"
+        " where id = %s and owner_person_id = %s",
+        (method_id, me),
     ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="Meio de pagamento não encontrado")
@@ -126,8 +131,8 @@ def _build(
 
 
 @router.get("/{method_id}/invoices/current")
-def current_invoice(method_id: UUID, conn: Conn) -> InvoiceOut:
-    card = _card(conn, method_id)
+def current_invoice(method_id: UUID, conn: Conn, user: User) -> InvoiceOut:
+    card = _card(conn, method_id, user.person_id)
     invoice = billing.invoice_for(card, dates.today_sp())
     return _build(conn, method_id, card, invoice.year, invoice.month)
 
@@ -138,6 +143,7 @@ def get_invoice(
     year: Annotated[int, Path(ge=2000, le=2100)],
     month: Annotated[int, Path(ge=1, le=12)],
     conn: Conn,
+    user: User,
 ) -> InvoiceOut:
-    card = _card(conn, method_id)
+    card = _card(conn, method_id, user.person_id)
     return _build(conn, method_id, card, year, month)

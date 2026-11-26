@@ -79,7 +79,10 @@ def test_setting_belongs_to_logged_user_only(logged_client, auth_env):
     login = other.post("/api/login", json={"username": "beltrana", "password": "senha-inventada-2"})
     assert login.status_code == 200
     assert other.get(URL).json()["default_method_id"] is None
-    assert other.patch(URL, json={"default_method_id": method}).status_code == 200
+    # Meio de outra pessoa não pode ser o principal (mesmo erro de meio inexistente).
+    assert other.patch(URL, json={"default_method_id": method}).status_code == 422
+    other_method = make_method(other, name="Pix da Beltrana")
+    assert other.patch(URL, json={"default_method_id": other_method}).status_code == 200
     assert other.patch(URL, json={"default_method_id": None}).status_code == 200
 
     # Limpar o principal da outra pessoa não mexe no da Fulana.
