@@ -170,6 +170,8 @@ def test_not_understood(logged_client):
     assert parse(logged_client, "comprei umas coisas por aí") == {
         "understood": False,
         "drafts": [],
+        "origin": None,
+        "fallback": "form",
     }
 
 
