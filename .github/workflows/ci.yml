@@ -54,3 +54,59 @@ jobs:
       - run: npm run format:check
       - run: npm test
       - run: npm run build
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    env:
+      # Postgres descartável do job, sem senha (trust); o banco é zerado a cada execução.
+      DATABASE_URL: postgresql://nico@localhost:5432/nico
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nico
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: nico
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nico -d nico"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            e2e/package-lock.json
+      - run: pip install -e backend
+      - run: npm ci
+        working-directory: web
+      - run: npm ci
+        working-directory: e2e
+      - run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      - name: Gerar senha e chave descartáveis do teste
+        run: |
+          E2E_PASSWORD="$(openssl rand -hex 16)"
+          NICO_SECRET_KEY="$(openssl rand -hex 32)"
+          echo "::add-mask::$E2E_PASSWORD"
+          echo "::add-mask::$NICO_SECRET_KEY"
+          echo "E2E_PASSWORD=$E2E_PASSWORD" >> "$GITHUB_ENV"
+          echo "NICO_SECRET_KEY=$NICO_SECRET_KEY" >> "$GITHUB_ENV"
+      - run: npm test
+        working-directory: e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7

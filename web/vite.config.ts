@@ -35,6 +35,11 @@ export default defineConfig({
       "/api": "http://localhost:8000",
     },
   },
+  preview: {
+    proxy: {
+      "/api": `http://localhost:${process.env.E2E_API_PORT ?? "8000"}`,
+    },
+  },
   test: {
     environment: "jsdom",
     setupFiles: ["./src/setupTests.ts"],
