@@ -60,7 +60,7 @@ def _purchase(c, person, method, total=1000, purchase_id=None) -> uuid.UUID:
 def test_migrate_is_idempotent(conn):
     assert migrate(URL) == []
     rows = conn.execute("select name from schema_migrations").fetchall()
-    assert rows == [("001_init.sql",), ("002_grupos.sql",)]
+    assert rows == [("001_init.sql",), ("002_grupos.sql",), ("003_escopo.sql",)]
     tables = {
         r[0] for r in conn.execute("select tablename from pg_tables where schemaname = 'public'")
     }
@@ -71,7 +71,7 @@ def test_first_run_reports_applied_file():
     with psycopg.connect(URL, autocommit=True) as setup:
         setup.execute("drop schema public cascade")
         setup.execute("create schema public")
-    assert migrate(URL) == ["001_init.sql", "002_grupos.sql"]
+    assert migrate(URL) == ["001_init.sql", "002_grupos.sql", "003_escopo.sql"]
 
 
 def test_negative_total_is_rejected(conn):
