@@ -8,6 +8,7 @@ A IA só extrai trechos: valor, data, parcelas, meio e pessoa saem de `ai.schema
 
 import logging
 import re
+import unicodedata
 from typing import Annotated, Literal
 
 import psycopg
@@ -24,6 +25,7 @@ from nico.ai.schema import AiDraft, Method, Person, validate
 from nico.aliases import normalize
 from nico.auth import CurrentUser, current_user
 from nico.db import get_conn
+from nico.money import parse_brl
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +52,19 @@ Kind = Literal["credito", "debito", "pix", "dinheiro"]
 CASH_KINDS = {"debito", "pix", "dinheiro"}
 
 _INSTALLMENT_RE = re.compile(r"\b\d{1,2}\s*x\b", re.IGNORECASE)
+_MONEY_TOKEN_RE = re.compile(r"(?:r\$\s*)?\d[\d.]*(?:,\d+)?", re.IGNORECASE)
 
 
 class ParseIn(BaseModel):
     text: Text
+
+
+class SpanOut(BaseModel):
+    """Trecho da frase original que virou um campo: posições em caracteres, `end` exclusivo."""
+
+    field: str
+    start: int
+    end: int
 
 
 class DraftOut(BaseModel):
@@ -68,6 +79,8 @@ class DraftOut(BaseModel):
     # Campo -> "frase" (veio do texto) ou "padrao" (as regras assumiram o valor).
     # Campo sem valor (descrição vazia, meio não reconhecido, sem principal) não aparece.
     sources: dict[str, str]
+    # Onde na frase cada campo apareceu. Campo do padrão ou não achado fica sem trecho.
+    spans: list[SpanOut] = []
 
 
 class ParseOut(BaseModel):
@@ -112,6 +125,66 @@ def _load_aliases(conn: psycopg.Connection) -> tuple[dict[str, str], dict[str, s
 def _segments(text: str) -> list[str]:
     # Mesma divisão de rules.parse_simple, para casar segmento e rascunho.
     return [s.strip() for s in re.split(r"[\n;]", text) if s.strip()]
+
+
+def _fold(text: str) -> str:
+    """Minúsculas e sem acento, mantendo o tamanho (posições valem no texto original)."""
+    out = []
+    for char in text:
+        base = unicodedata.normalize("NFD", char)[0].lower()
+        out.append(base if len(base) == 1 else char)
+    return "".join(out)
+
+
+def _find_alias(segment: str, aliases: dict[str, str], method_id: str) -> tuple[int, int] | None:
+    folded = _fold(segment)
+    candidates = sorted((a for a, m in aliases.items() if m == method_id and a), key=len)
+    for alias in reversed(candidates):  # o mais longo primeiro
+        words = r"\s+".join(re.escape(w) for w in _fold(alias).split())
+        found = re.search(rf"(?<!\w){words}(?!\w)", folded)
+        if found:
+            return found.span()
+    return None
+
+
+def _find_amount(segment: str, amount_cents: int) -> tuple[int, int] | None:
+    for found in _MONEY_TOKEN_RE.finditer(segment):
+        try:
+            if parse_brl(found.group()) == amount_cents:
+                return found.span()
+        except ValueError:
+            continue
+    return None
+
+
+def _find_spans(
+    segment: str,
+    offset: int,
+    draft: DraftOut,
+    aliases: dict[str, str],
+) -> list[SpanOut]:
+    """Procura no segmento (que começa em `offset` da frase) o texto de cada campo.
+
+    Só campos que vieram da frase; o que não for achado fica sem trecho.
+    """
+    found: dict[str, tuple[int, int] | None] = {}
+    sources = draft.sources
+    if sources.get("amount_cents") not in (None, "padrao"):
+        found["amount_cents"] = _find_amount(segment, draft.amount_cents)
+    if sources.get("description") not in (None, "padrao") and draft.description:
+        start = _fold(segment).find(_fold(draft.description))
+        found["description"] = (start, start + len(draft.description)) if start >= 0 else None
+    if sources.get("method_id") not in (None, "padrao") and draft.method_id:
+        found["method_id"] = _find_alias(segment, aliases, draft.method_id)
+    if sources.get("installments") not in (None, "padrao") and draft.installments > 1:
+        match = _INSTALLMENT_RE.search(segment)
+        found["installments"] = match.span() if match else None
+    return [
+        SpanOut(field=f, start=offset + a, end=offset + b)
+        for f, p in found.items()
+        if p
+        for a, b in [p]
+    ]
 
 
 def _date_in_text(segment: str, today) -> bool:
@@ -177,7 +250,10 @@ def _parse_text(
         return ParseOut(understood=False, drafts=[], fallback="form")
     segments = _segments(text)
     drafts = []
+    cursor = 0
     for draft, segment in zip(parsed, segments, strict=True):
+        offset = text.find(segment, cursor)
+        cursor = offset + len(segment)
         method_id = draft.card_id
         from_default = False
         if method_id is None and default_method_id in kinds:
@@ -204,19 +280,19 @@ def _parse_text(
         sources["purchase_date"] = "frase" if _date_in_text(segment, today) else "padrao"
         has_times = bool(_INSTALLMENT_RE.search(segment))
         sources["installments"] = "frase" if has_times and installments > 1 else "padrao"
-        drafts.append(
-            DraftOut(
-                description=draft.description,
-                amount_cents=draft.amount_cents,
-                method_id=method_id,
-                method_type=kind,
-                person_id=user.person_id,
-                purchase_date=draft.purchase_date.isoformat(),
-                installments=installments,
-                missing=missing,
-                sources=sources,
-            )
+        out = DraftOut(
+            description=draft.description,
+            amount_cents=draft.amount_cents,
+            method_id=method_id,
+            method_type=kind,
+            person_id=user.person_id,
+            purchase_date=draft.purchase_date.isoformat(),
+            installments=installments,
+            missing=missing,
+            sources=sources,
         )
+        out.spans = _find_spans(segment, offset, out, aliases)
+        drafts.append(out)
     return ParseOut(understood=True, drafts=drafts, origin="rules")
 
 
@@ -248,6 +324,8 @@ def _parse_with_ai(
     if not ai_drafts:
         return failed
     drafts = [_ai_draft_out(d, kinds, default_method_id, user) for d in ai_drafts]
+    for out in drafts:
+        out.spans = _find_spans(text, 0, out, aliases)
     return ParseOut(understood=True, drafts=drafts, origin=origin)
 
 

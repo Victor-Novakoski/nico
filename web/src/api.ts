@@ -141,6 +141,8 @@ export function listPeople(): Promise<Person[]> {
 
 export type DraftSources = Record<string, "frase" | "padrao">;
 
+export type DraftSpan = { field: string; start: number; end: number };
+
 export type Draft = {
   description: string;
   amount_cents: number;
@@ -151,6 +153,7 @@ export type Draft = {
   installments: number;
   missing: string[];
   sources: DraftSources;
+  spans?: DraftSpan[];
 };
 
 export type ParseResult = {
