@@ -2,7 +2,16 @@ from fastapi import Depends, FastAPI
 
 from nico.auth import current_user
 from nico.db import lifespan
-from nico.routes import drafts, invoices, payment_methods, people, purchases, session, settings
+from nico.routes import (
+    drafts,
+    invoices,
+    month,
+    payment_methods,
+    people,
+    purchases,
+    session,
+    settings,
+)
 
 app = FastAPI(title="Nico", lifespan=lifespan)
 
@@ -24,3 +33,4 @@ app.include_router(drafts.router, dependencies=PROTECTED)
 app.include_router(settings.router, dependencies=PROTECTED)
 app.include_router(purchases.router, dependencies=PROTECTED)
 app.include_router(invoices.router, dependencies=PROTECTED)
+app.include_router(month.router, dependencies=PROTECTED)
