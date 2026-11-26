@@ -26,15 +26,17 @@ describe("App", () => {
   it("mostra a tela inicial quando há sessão", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse(200, { username: "ana", person_id: "p1" }),
+      vi.fn((path: string) =>
+        Promise.resolve(
+          path === "/api/me"
+            ? jsonResponse(200, { username: "ana", person_id: "p1" })
+            : jsonResponse(200, []),
         ),
+      ),
     );
     render(<App />);
     expect(
-      await screen.findByRole("heading", { name: "Olá, ana" }),
+      await screen.findByRole("heading", { name: "Lançar gastos" }),
     ).toBeInTheDocument();
   });
 
