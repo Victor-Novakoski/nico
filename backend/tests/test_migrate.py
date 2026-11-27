@@ -20,6 +20,10 @@ TABLES = {
     "installment",
     "purchase_share",
     "app_user",
+    "expense_group",
+    "group_member",
+    "group_invite",
+    "settlement",
     "schema_migrations",
 }
 
@@ -56,7 +60,7 @@ def _purchase(c, person, method, total=1000, purchase_id=None) -> uuid.UUID:
 def test_migrate_is_idempotent(conn):
     assert migrate(URL) == []
     rows = conn.execute("select name from schema_migrations").fetchall()
-    assert rows == [("001_init.sql",)]
+    assert rows == [("001_init.sql",), ("002_grupos.sql",), ("003_escopo.sql",)]
     tables = {
         r[0] for r in conn.execute("select tablename from pg_tables where schemaname = 'public'")
     }
@@ -67,7 +71,7 @@ def test_first_run_reports_applied_file():
     with psycopg.connect(URL, autocommit=True) as setup:
         setup.execute("drop schema public cascade")
         setup.execute("create schema public")
-    assert migrate(URL) == ["001_init.sql"]
+    assert migrate(URL) == ["001_init.sql", "002_grupos.sql", "003_escopo.sql"]
 
 
 def test_negative_total_is_rejected(conn):
@@ -178,3 +182,82 @@ def test_default_method_is_nullable_and_cleared_when_method_deleted(conn):
             "insert into app_user (person_id, username, password_hash) values (%s, 'ana', 'x')",
             (p,),
         )
+
+
+def _group(c, person, name="Casa") -> uuid.UUID:
+    return c.execute(
+        "insert into expense_group (name, created_by_person_id) values (%s, %s) returning id",
+        (name, person),
+    ).fetchone()[0]
+
+
+def _member(c, group, person, role="membro"):
+    c.execute(
+        "insert into group_member (group_id, person_id, role) values (%s, %s, %s)",
+        (group, person, role),
+    )
+
+
+def test_member_defaults_and_repeated_member_is_rejected(conn):
+    p = _person(conn)
+    g = _group(conn, p)
+    _member(conn, g, p, "dono")
+    row = conn.execute(
+        "select show_expenses, show_income from group_member where group_id = %s", (g,)
+    ).fetchone()
+    assert row == ("grupo", False)
+    with pytest.raises(errors.UniqueViolation):
+        _member(conn, g, p)
+
+
+def test_empty_group_name_is_rejected(conn):
+    p = _person(conn)
+    with pytest.raises(errors.CheckViolation):
+        _group(conn, p, "  ")
+
+
+def _invite(c, group, person, token_hash):
+    c.execute(
+        "insert into group_invite (group_id, token_hash, expires_at, created_by_person_id)"
+        " values (%s, %s, now() + interval '1 day', %s)",
+        (group, token_hash, person),
+    )
+
+
+def test_repeated_token_hash_is_rejected(conn):
+    p = _person(conn)
+    g = _group(conn, p)
+    _invite(conn, g, p, "hash-a")
+    with pytest.raises(errors.UniqueViolation):
+        _invite(conn, g, p, "hash-a")
+
+
+def _settlement(c, group, from_p, to_p, amount=500):
+    c.execute(
+        "insert into settlement (group_id, from_person_id, to_person_id, amount_cents,"
+        " paid_on, created_by_person_id) values (%s, %s, %s, %s, '2026-02-01', %s)",
+        (group, from_p, to_p, amount, from_p),
+    )
+
+
+def test_settlement_to_self_or_zero_is_rejected(conn):
+    a = _person(conn)
+    b = _person(conn)
+    g = _group(conn, a)
+    with pytest.raises(errors.CheckViolation):
+        _settlement(conn, g, a, a)
+    with pytest.raises(errors.CheckViolation):
+        _settlement(conn, g, a, b, amount=0)
+    _settlement(conn, g, a, b)
+
+
+def test_deleting_group_cascades(conn):
+    a = _person(conn)
+    b = _person(conn)
+    g = _group(conn, a)
+    _member(conn, g, a, "dono")
+    _invite(conn, g, a, "hash-b")
+    _settlement(conn, g, a, b)
+    conn.execute("delete from expense_group where id = %s", (g,))
+    for t in ("group_member", "group_invite", "settlement"):
+        assert conn.execute(f"select count(*) from {t}").fetchone()[0] == 0

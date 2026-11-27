@@ -98,6 +98,7 @@ def create_purchase(
     shares: dict[UUID, int] | None = None,
     status: str = "pendente",
     ai_provider: str | None = None,
+    group_id: UUID | None = None,
 ) -> UUID:
     """Grava a compra e devolve o `id`. Não faz commit.
 
@@ -123,8 +124,8 @@ def create_purchase(
 
     inserted = conn.execute(
         "insert into purchase (id, description, total_cents, purchase_date, installments,"
-        " status, ai_provider, payment_method_id, created_by_person_id)"
-        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s) on conflict (id) do nothing returning id",
+        " status, ai_provider, payment_method_id, created_by_person_id, group_id)"
+        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) on conflict (id) do nothing returning id",
         (
             id,
             description,
@@ -135,6 +136,7 @@ def create_purchase(
             ai_provider,
             payment_method_id,
             created_by_person_id,
+            group_id,
         ),
     ).fetchone()
     if inserted is None:
@@ -152,7 +154,7 @@ def get_purchase(conn: psycopg.Connection, id: UUID) -> dict[str, Any] | None:
     """
     row = conn.execute(
         "select id, description, total_cents, purchase_date, installments, status, ai_provider,"
-        " payment_method_id, created_by_person_id from purchase where id = %s",
+        " payment_method_id, created_by_person_id, group_id from purchase where id = %s",
         (id,),
     ).fetchone()
     if row is None:
@@ -167,6 +169,7 @@ def get_purchase(conn: psycopg.Connection, id: UUID) -> dict[str, Any] | None:
         "ai_provider",
         "payment_method_id",
         "created_by_person_id",
+        "group_id",
     )
     result: dict[str, Any] = dict(zip(keys, row, strict=True))
     result["installments_list"] = [
