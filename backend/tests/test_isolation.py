@@ -473,3 +473,52 @@ def test_group_purchase_without_shares_splits_equally_among_members(world):
     bought = _buy(world.c["Ana"], world.card["Ana"], group_id=world.group_a)
     people = {s["person_id"]: s["weight"] for s in bought["shares"]}
     assert people == {world.ids["Ana"]: 1, world.ids["Caio"]: 1}
+
+
+# Rascunhos (/api/drafts): só os meios da própria pessoa e as pessoas dos grupos dela.
+
+
+def _parse(client, text: str) -> dict:
+    response = client.post("/api/drafts/parse", json={"text": text})
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_drafts_ignore_alias_of_someone_elses_method(world):
+    alias = world.c["Ana"].post(
+        f"/api/payment-methods/{world.card['Ana']}/aliases", json={"alias": "lilas"}
+    )
+    assert alias.status_code == 201, alias.text
+    own = _parse(world.c["Ana"], "50 mercado no lilas")
+    assert own["drafts"][0]["method_id"] == world.card["Ana"]
+    for who in ("Bia", "Caio"):  # de outro grupo e do mesmo grupo
+        result = _parse(world.c[who], "50 mercado no lilas")
+        assert all(d["method_id"] != world.card["Ana"] for d in result["drafts"])
+        # Nem o nome do meio alheio vale como apelido.
+        result = _parse(world.c[who], "50 mercado no cartão ana")
+        assert all(d["method_id"] != world.card["Ana"] for d in result["drafts"])
+
+
+def test_ai_gets_only_own_methods_and_visible_people(world):
+    from nico.ai.cascade import Cascade
+    from nico.ai.schema import Extraction
+    from nico.app import app
+    from nico.routes.drafts import get_cascade
+
+    seen = []
+
+    class Spy:
+        def extract(self, text, context):
+            seen.append(context)
+            return Extraction(items=[])
+
+    client = world.c["Ana"]
+    assert client.patch("/api/me/settings", json={"ai_enabled": True}).status_code == 200
+    app.dependency_overrides[get_cascade] = lambda: Cascade([("spy", Spy())])
+    try:
+        _parse(client, "paguei o mercado ontem no roxo")
+    finally:
+        app.dependency_overrides.pop(get_cascade, None)
+    [context] = seen
+    assert {m.id for m in context.methods} == {world.card["Ana"], world.pix["Ana"]}
+    assert {p.id for p in context.people} == {world.ids["Ana"], world.ids["Caio"]}

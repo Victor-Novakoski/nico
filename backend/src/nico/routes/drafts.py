@@ -15,7 +15,7 @@ import psycopg
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel, StringConstraints
 
-from nico import config, dates, rules
+from nico import config, dates, rules, scope
 from nico.ai.audio import MAX_AUDIO_BYTES, AudioRejected, check_audio
 from nico.ai.base import AllProvidersFailed, ProviderConfigError
 from nico.ai.cascade import Cascade, build_cascade
@@ -97,23 +97,32 @@ class AudioOut(ParseOut):
     transcript: str | None = None
 
 
-def _load_aliases(conn: psycopg.Connection) -> tuple[dict[str, str], dict[str, str]]:
+def _load_aliases(
+    conn: psycopg.Connection, person_id: str
+) -> tuple[dict[str, str], dict[str, str]]:
     """({apelido: id do meio}, {id do meio: tipo}).
 
     Além dos apelidos cadastrados, o próprio nome de cada meio vale como apelido
     (normalizado). Apelido cadastrado vence nome; nome repetido entre meios fica
     com o primeiro (os apelidos são únicos no banco, os nomes não).
+    Só os meios de que a pessoa é dona (decisão 013): compra só entra com meio
+    próprio, então apelido de meio alheio nem é reconhecido.
     """
     kinds: dict[str, str] = {}
     names: dict[str, str] = {}
     for method_id, name, kind in conn.execute(
-        "select id::text, name, kind from payment_method order by name, id"
+        "select id::text, name, kind from payment_method"
+        " where owner_person_id = %s order by name, id",
+        (person_id,),
     ):
         kinds[method_id] = kind
         names.setdefault(normalize(name), method_id)
     aliases: dict[str, str] = {}
     for alias, method_id in conn.execute(
-        "select alias, payment_method_id::text from payment_method_alias"
+        "select a.alias, a.payment_method_id::text from payment_method_alias a"
+        " join payment_method pm on pm.id = a.payment_method_id"
+        " where pm.owner_person_id = %s",
+        (person_id,),
     ):
         aliases[normalize(alias)] = method_id
     for name, method_id in names.items():
@@ -234,7 +243,7 @@ def parse_audio(file: UploadFile, conn: Conn, user: User, cascade: Ai) -> AudioO
 def _parse_text(
     text: str, conn: psycopg.Connection, user: CurrentUser, cascade: Cascade | None
 ) -> ParseOut:
-    aliases, kinds = _load_aliases(conn)
+    aliases, kinds = _load_aliases(conn, user.person_id)
     row = conn.execute(
         "select default_method_id::text, ai_enabled from app_user where id = %s", (user.id,)
     ).fetchone()
@@ -311,7 +320,12 @@ def _parse_with_ai(
     for alias, method_id in aliases.items():
         by_method.setdefault(method_id, []).append(alias)
     methods = [Method(mid, by_method.get(mid, []), kind) for mid, kind in kinds.items()]
-    people = [Person(str(pid), [name]) for pid, name in conn.execute("select id, name from person")]
+    # Só a própria pessoa e quem divide grupo com ela (decisão 013).
+    visible = list(scope.visible_people(conn, user.person_id))
+    people = [
+        Person(str(pid), [name])
+        for pid, name in conn.execute("select id, name from person where id = any(%s)", (visible,))
+    ]
     context = ExtractionContext(today=today, methods=methods, people=people)
     try:
         origin, extraction = cascade.extract(text, context)
