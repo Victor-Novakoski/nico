@@ -1,5 +1,7 @@
 import uuid
 
+import psycopg
+
 URL = "/api/purchases"
 
 
@@ -17,8 +19,24 @@ def make_method(client, **fields) -> str:
     return response.json()["id"]
 
 
-def make_person(client, name="Beltrano") -> str:
-    return client.post("/api/people", json={"name": name}).json()["id"]
+def make_group(db_url, client) -> str:
+    """Grupo com a Fulana como dona; devolve o id."""
+    with psycopg.connect(db_url) as conn:
+        group_id = conn.execute(
+            "insert into expense_group (name, created_by_person_id) values ('Casa', %s)"
+            " returning id",
+            (person_id(client),),
+        ).fetchone()[0]
+        conn.execute(
+            "insert into group_member (group_id, person_id, role) values (%s, %s, 'dono')",
+            (group_id, person_id(client)),
+        )
+    return str(group_id)
+
+
+def make_person(client, group_id, name="Beltrano") -> str:
+    response = client.post("/api/people", json={"name": name, "group_id": group_id})
+    return response.json()["id"]
 
 
 def body(method_id, **fields) -> dict:
@@ -72,8 +90,7 @@ def test_create_credit_in_3_installments(logged_client):
 def test_created_by_comes_only_from_logged_user(logged_client):
     client = logged_client
     method = make_method(client)
-    other = make_person(client)
-    response = post(client, method, created_by_person_id=other)
+    response = post(client, method, created_by_person_id=str(uuid.uuid4()))
     assert response.status_code == 422
 
 
@@ -113,18 +130,20 @@ def test_invalid_input_is_422(logged_client):
     assert client.get(URL).json() == []
 
 
-def test_create_with_shares(logged_client):
+def test_create_with_shares(logged_client, auth_env):
     client = logged_client
     method = make_method(client)
-    other = make_person(client)
+    group = make_group(auth_env, client)
+    other = make_person(client, group)
     shares = [{"person_id": person_id(client), "weight": 1}, {"person_id": other, "weight": 2}]
-    purchase = post(client, method, shares=shares).json()
+    assert post(client, method, shares=shares).status_code == 422  # dividida sem grupo
+    purchase = post(client, method, shares=shares, group_id=group).json()
     assert {s["person_id"]: s["weight"] for s in purchase["shares"]} == {
         person_id(client): 1,
         other: 2,
     }
     dup = [{"person_id": other, "weight": 1}, {"person_id": other, "weight": 2}]
-    assert post(client, method, shares=dup).status_code == 422
+    assert post(client, method, shares=dup, group_id=group).status_code == 422
 
 
 def test_list_with_status_filter(logged_client):
@@ -188,10 +207,11 @@ def test_patch_credit_to_pix_removes_installments(logged_client):
     assert response.json()["installments_list"] == []
 
 
-def test_patch_shares(logged_client):
+def test_patch_shares(logged_client, auth_env):
     client = logged_client
-    purchase = post(client, make_method(client)).json()
-    other = make_person(client)
+    group = make_group(auth_env, client)
+    purchase = post(client, make_method(client), group_id=group).json()
+    other = make_person(client, group)
     response = client.patch(
         f"{URL}/{purchase['id']}", json={"shares": [{"person_id": other, "weight": 3}]}
     )

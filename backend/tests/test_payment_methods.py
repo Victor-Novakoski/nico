@@ -81,10 +81,10 @@ def test_invalid_kind_and_name_are_422(logged_client):
     assert create(logged_client, name="   ", kind="pix").status_code == 422
 
 
-def test_unknown_owner_is_422(logged_client):
+def test_other_owner_is_422(logged_client):
     response = create(logged_client, kind="pix", owner_id="00000000-0000-0000-0000-000000000000")
     assert response.status_code == 422
-    assert "Dono" in response.json()["detail"]
+    assert "meio próprio" in response.json()["detail"]
 
 
 def test_alias_is_saved_normalized(logged_client):

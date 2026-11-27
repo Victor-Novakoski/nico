@@ -7,6 +7,7 @@ import psycopg
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, StrictBool, model_validator
 
+from nico import scope
 from nico.auth import CurrentUser, current_user
 from nico.db import get_conn
 
@@ -56,10 +57,7 @@ def update_settings(body: SettingsPatch, conn: Conn, user: User) -> SettingsOut:
     if (
         "default_method_id" in sent
         and body.default_method_id is not None
-        and conn.execute(
-            "select 1 from payment_method where id = %s", (body.default_method_id,)
-        ).fetchone()
-        is None
+        and not scope.owns_method(conn, user.person_id, body.default_method_id)
     ):
         raise HTTPException(status_code=422, detail="Meio de pagamento não encontrado")
     sets: list[str] = []

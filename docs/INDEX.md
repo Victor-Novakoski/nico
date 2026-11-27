@@ -18,3 +18,4 @@
 | `docs/decisoes/009-meio-principal-e-de-quem-e.md` | for mexer no meio de pagamento padrão, na tela de conferência ou em quem fica com cada compra |
 | `docs/decisoes/010-credito-e-a-vista.md` | for mexer no cadastro de meios de pagamento, em débito, Pix, dinheiro ou no total do mês |
 | `docs/decisoes/011-categorias-em-dois-niveis.md` | for mexer em categorias, sugestão de categoria ou no resumo do mês por categoria |
+| `docs/decisoes/013-pessoas-e-grupos.md` | for mexer em quem vê o quê, grupos, convites, divisão entre pessoas, saldo e acerto, ou em qualquer consulta que precise filtrar por dono |
