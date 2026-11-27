@@ -135,3 +135,86 @@ def _parse_segment(segment: str, aliases: dict[str, str], today: date) -> Draft 
         installments=installments,
         missing=missing,
     )
+
+
+# Entrada de dinheiro (renda): verbo + valor + descrição, sem cartão nem parcelas.
+_INCOME_VERBS = {"recebi", "entrou", "ganhei", "caiu"}
+# Meios de recebimento: saem da descrição ("recebi 350 do cliente no pix" -> "cliente").
+_INCOME_METHODS = {"pix", "ted", "doc", "transferencia", "dinheiro", "especie", "boleto"}
+
+
+@dataclass
+class ParsedIncome:
+    description: str
+    amount_cents: int
+    received_date: date
+
+
+def parse_income(text: str, today: date) -> ParsedIncome | None:
+    """Uma entrada de dinheiro ("recebi 350 do cliente no pix"). `None` se não for entrada
+    ou se for ambíguo (sem valor, dois valores, duas datas). Só tira palavras de meio de
+    recebimento (pix, ted...) e conectivos da descrição; o resto fica como a pessoa disse."""
+    rest = text.strip()
+    if not rest or re.search(r"[\n;]", rest):
+        return None
+    date_hits = (
+        len(_SLASH_RE.findall(rest)) + len(_WORD_DATE_RE.findall(rest)) + len(_DAY_RE.findall(rest))
+    )
+    if date_hits > 1:
+        return None
+    try:
+        parsed_date = parse_date_pt(rest, today)
+    except ValueError:
+        return None
+    for pattern in (_SLASH_RE, _WORD_DATE_RE, _DAY_RE):
+        rest = pattern.sub(" ", rest)
+
+    tokens = rest.split()
+    if not any(normalize(t.strip(_EDGE_CHARS)) in _INCOME_VERBS for t in tokens):
+        return None
+    amount_cents = None
+    description_tokens: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index].strip(_EDGE_CHARS.replace("$", ""))
+        if token.lower() == "r$" and index + 1 < len(tokens):
+            token = "R$" + tokens[index + 1].strip(_EDGE_CHARS)
+            index += 1
+        if _MONEY_RE.match(token):
+            if index + 1 < len(tokens) and normalize(tokens[index + 1]) in {"reais", "real"}:
+                index += 1
+            if amount_cents is not None:
+                return None  # dois valores: ambíguo
+            try:
+                amount_cents = parse_brl(token)
+            except ValueError:
+                return None
+        else:
+            description_tokens.append(tokens[index])
+        index += 1
+    if not amount_cents:
+        return None
+
+    # Tira o verbo e o meio ("no pix") de qualquer lugar; conectivos só das pontas,
+    # como no parser de gastos ("venda de bolo" fica inteiro).
+    kept: list[str] = []
+    for token in description_tokens:
+        word = normalize(token.strip(_EDGE_CHARS))
+        if word in _INCOME_VERBS:
+            continue
+        if word in _INCOME_METHODS:
+            if kept and normalize(kept[-1]) in _FILLERS:
+                kept.pop()
+            continue
+        kept.append(token)
+    description_tokens = kept
+    while description_tokens and normalize(description_tokens[0]) in _FILLERS:
+        description_tokens.pop(0)
+    while description_tokens and normalize(description_tokens[-1]) in _FILLERS:
+        description_tokens.pop()
+    description = " ".join(description_tokens).strip(_EDGE_CHARS + " ")
+    return ParsedIncome(
+        description=description,
+        amount_cents=amount_cents,
+        received_date=parsed_date or today,
+    )
