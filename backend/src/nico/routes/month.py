@@ -8,12 +8,14 @@ import psycopg
 from fastapi import APIRouter, Depends, Path
 from pydantic import BaseModel
 
-from nico import billing
+from nico import billing, scope
+from nico.auth import CurrentUser, current_user
 from nico.db import get_conn
 
 router = APIRouter(prefix="/api/months")
 
 Conn = Annotated[psycopg.Connection, Depends(get_conn)]
+User = Annotated[CurrentUser, Depends(current_user)]
 
 
 class CashItem(BaseModel):
@@ -40,15 +42,17 @@ def cash_month(
     year: Annotated[int, Path(ge=2000, le=2100)],
     month: Annotated[int, Path(ge=1, le=12)],
     conn: Conn,
+    user: User,
 ) -> CashOut:
     start = date(year, month, 1)
     end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
     rows = conn.execute(
         "select p.id, p.description, p.purchase_date, p.total_cents, p.status, p.payment_method_id"
         " from purchase p join payment_method m on m.id = p.payment_method_id"
-        " where m.kind <> 'credito' and p.purchase_date >= %s and p.purchase_date < %s"
+        " where m.kind <> 'credito' and p.purchase_date >= %(start)s"
+        f" and p.purchase_date < %(end)s and {scope.READABLE_PURCHASE}"
         " order by p.purchase_date, p.description, p.id",
-        (start, end),
+        {"start": start, "end": end, "me": user.person_id},
     ).fetchall()
     shares: dict[UUID, dict[str, int]] = {}
     for purchase_id, person_id, weight in conn.execute(
