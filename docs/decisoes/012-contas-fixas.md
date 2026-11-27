@@ -1,7 +1,7 @@
 # 012. Contas fixas e renda: o que volta todo mês e o que entra
 
 - **Data:** 2026-11-26
-- **Status:** ativa (usa o meio de pagamento da 010 e a divisão da 004 e da 009)
+- **Status:** ativa, ajustada pela 013 (escopo pessoal ou de grupo e privacidade da renda por grupo)
 
 ## Contexto
 
@@ -32,7 +32,8 @@ Duas coisas precisam de regra explícita: como a conta fixa entra no mês sem vi
 - **Entrada avulsa** (autônomo, freela): é lançada pela frase ("recebi 350 do cliente"). A IA ou o parser só extrai os campos; a entrada aparece para conferência e só é salva depois que a pessoa confirma, como qualquer lançamento (decisão 002 e regra "nada é salvo sem passar pela pessoa").
 - **Entrada não é compra:** não tem meio, parcela nem fatura. Fica numa tabela própria e conta no mês em que caiu.
 - **Sobra da pessoa** = o que entrou para ela no mês − a parte dela nos gastos do mês (contas fixas, compras à vista e cartões). A sobra segue a mesma regra de privacidade da renda: se a renda está oculta, a sobra também está.
-- **Privacidade da renda:**
+- **Escopo (013):** conta fixa é pessoal ou de um grupo (o aluguel é da casa); renda é sempre pessoal. Onde abaixo se lê "casa", leia "cada grupo da pessoa".
+- **Privacidade da renda** (a 013 troca a opção única por uma escolha em cada grupo):
   - cada pessoa escolhe "mostrar minha renda para a casa". A opção vem **desligada** por padrão;
   - desligada, as outras pessoas veem só o nome da pessoa, sem valor, e a sobra dela também não aparece;
   - o total de entradas da casa soma **só** as pessoas que mostram a renda. Assim, o total não deixa deduzir o valor de quem escondeu;
