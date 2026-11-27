@@ -59,6 +59,12 @@ def test_simple_sentence_with_alias(logged_client):
                 "purchase_date": "padrao",
                 "installments": "frase",
             },
+            "spans": [
+                {"field": "amount_cents", "start": 0, "end": 3},
+                {"field": "description", "start": 7, "end": 14},
+                {"field": "method_id", "start": 18, "end": 22},
+                {"field": "installments", "start": 23, "end": 25},
+            ],
         }
     ]
 
