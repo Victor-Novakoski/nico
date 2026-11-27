@@ -8,11 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from nico.aliases import normalize
+from nico.auth import CurrentUser, current_user
 from nico.db import get_conn
 
 router = APIRouter(prefix="/api/payment-methods")
 
 Conn = Annotated[psycopg.Connection, Depends(get_conn)]
+User = Annotated[CurrentUser, Depends(current_user)]
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 Day = Annotated[int, Field(ge=1, le=31)]
 Kind = Literal["credito", "debito", "pix", "dinheiro"]
@@ -72,43 +74,54 @@ def _out(row: tuple) -> PaymentMethodOut:
     )
 
 
-def _fetch(conn: psycopg.Connection, method_id: UUID) -> PaymentMethodOut | None:
-    row = conn.execute(SELECT + " where pm.id = %s" + GROUP, (method_id,)).fetchone()
+def _fetch(conn: psycopg.Connection, method_id: UUID, me: str) -> PaymentMethodOut | None:
+    """Só devolve o meio se for da pessoa `me` (meio de outra pessoa é como se não existisse)."""
+    row = conn.execute(
+        SELECT + " where pm.id = %s and pm.owner_person_id = %s" + GROUP, (method_id, me)
+    ).fetchone()
     return _out(row) if row else None
 
 
 @router.post("", status_code=201)
-def create_payment_method(body: PaymentMethodIn, conn: Conn) -> PaymentMethodOut:
-    if conn.execute("select 1 from person where id = %s", (body.owner_id,)).fetchone() is None:
-        raise HTTPException(status_code=422, detail="Dono não encontrado")
+def create_payment_method(body: PaymentMethodIn, conn: Conn, user: User) -> PaymentMethodOut:
+    if str(body.owner_id) != user.person_id:
+        raise HTTPException(status_code=422, detail="Só é possível cadastrar meio próprio")
     method_id = conn.execute(
         "insert into payment_method (owner_person_id, name, kind, closing_day, due_day)"
         " values (%s, %s, %s, %s, %s) returning id",
         (body.owner_id, body.name, body.kind, body.closing_day, body.due_day),
     ).fetchone()[0]
-    return _fetch(conn, method_id)
+    return _fetch(conn, method_id, user.person_id)
 
 
 @router.get("")
-def list_payment_methods(conn: Conn) -> list[PaymentMethodOut]:
-    rows = conn.execute(SELECT + GROUP + " order by lower(pm.name), pm.name, pm.id").fetchall()
+def list_payment_methods(conn: Conn, user: User) -> list[PaymentMethodOut]:
+    rows = conn.execute(
+        SELECT
+        + " where pm.owner_person_id = %s"
+        + GROUP
+        + " order by lower(pm.name), pm.name, pm.id",
+        (user.person_id,),
+    ).fetchall()
     return [_out(r) for r in rows]
 
 
 @router.post("/{method_id}/aliases", status_code=201)
-def add_alias(method_id: UUID, body: AliasIn, conn: Conn) -> PaymentMethodOut:
+def add_alias(method_id: UUID, body: AliasIn, conn: Conn, user: User) -> PaymentMethodOut:
+    # Meio de outra pessoa: 404, antes de qualquer outra validação (não revela que existe).
+    if _fetch(conn, method_id, user.person_id) is None:
+        raise HTTPException(status_code=404, detail="Meio de pagamento não encontrado")
     alias = normalize(body.alias)
     if not alias:
         raise HTTPException(status_code=422, detail="Apelido vazio")
-    if conn.execute("select 1 from payment_method where id = %s", (method_id,)).fetchone() is None:
-        raise HTTPException(status_code=404, detail="Meio de pagamento não encontrado")
     try:
         conn.execute(
             "insert into payment_method_alias (payment_method_id, alias) values (%s, %s)",
             (method_id, alias),
         )
     except psycopg.errors.UniqueViolation:
+        # TODO: índice único de apelido é global; deveria ser por dono (o 409 vaza apelido alheio).
         raise HTTPException(
             status_code=409, detail="Apelido já usado em outro meio de pagamento"
         ) from None
-    return _fetch(conn, method_id)
+    return _fetch(conn, method_id, user.person_id)
