@@ -24,6 +24,9 @@ TABLES = {
     "group_member",
     "group_invite",
     "settlement",
+    "recurring_bill",
+    "recurring_bill_share",
+    "bill_payment",
     "schema_migrations",
 }
 
@@ -65,6 +68,7 @@ def test_migrate_is_idempotent(conn):
         ("002_grupos.sql",),
         ("003_escopo.sql",),
         ("004_apelido_por_dono.sql",),
+        ("005_contas_fixas.sql",),
     ]
     tables = {
         r[0] for r in conn.execute("select tablename from pg_tables where schemaname = 'public'")
@@ -81,6 +85,7 @@ def test_first_run_reports_applied_file():
         "002_grupos.sql",
         "003_escopo.sql",
         "004_apelido_por_dono.sql",
+        "005_contas_fixas.sql",
     ]
 
 
@@ -289,3 +294,95 @@ def test_deleting_group_cascades(conn):
     conn.execute("delete from expense_group where id = %s", (g,))
     for t in ("group_member", "group_invite", "settlement"):
         assert conn.execute(f"select count(*) from {t}").fetchone()[0] == 0
+
+
+def _bill(c, person, method, due_day=10, **extra) -> uuid.UUID:
+    cols = {"name": "Internet", "due_day": due_day, "payment_method_id": method}
+    cols["created_by_person_id"] = person
+    cols.update(extra)
+    names = ", ".join(cols)
+    marks = ", ".join(["%s"] * len(cols))
+    return c.execute(
+        f"insert into recurring_bill ({names}) values ({marks}) returning id",
+        tuple(cols.values()),
+    ).fetchone()[0]
+
+
+def _bill_setup(c):
+    p = _person(c)
+    return p, _method(c, p)
+
+
+def test_bill_defaults_and_nullable_amount(conn):
+    p, m = _bill_setup(conn)
+    b = _bill(conn, p, m)
+    row = conn.execute(
+        "select active, amount_cents, group_id from recurring_bill where id = %s", (b,)
+    ).fetchone()
+    assert row == (True, None, None)
+    _bill(conn, p, m, amount_cents=0)
+
+
+@pytest.mark.parametrize("day", [0, 32])
+def test_bill_due_day_out_of_range_is_rejected(conn, day):
+    p, m = _bill_setup(conn)
+    with pytest.raises(errors.CheckViolation):
+        _bill(conn, p, m, due_day=day)
+
+
+def test_bill_installments_require_start(conn):
+    p, m = _bill_setup(conn)
+    with pytest.raises(errors.CheckViolation):
+        _bill(conn, p, m, installments_total=6)
+    with pytest.raises(errors.CheckViolation):
+        _bill(conn, p, m, installments_total=6, start_year=2026)
+    with pytest.raises(errors.CheckViolation):
+        _bill(conn, p, m, installments_total=6, start_year=2026, start_month=13)
+    with pytest.raises(errors.CheckViolation):
+        _bill(conn, p, m, installments_total=0, start_year=2026, start_month=1)
+    _bill(conn, p, m, installments_total=6, start_year=2026, start_month=1)
+
+
+def test_bill_share_weight_and_cascade(conn):
+    p, m = _bill_setup(conn)
+    b = _bill(conn, p, m)
+    with pytest.raises(errors.CheckViolation):
+        conn.execute(
+            "insert into recurring_bill_share (bill_id, person_id, weight) values (%s, %s, 0)",
+            (b, p),
+        )
+    conn.execute(
+        "insert into recurring_bill_share (bill_id, person_id, weight) values (%s, %s, 1)",
+        (b, p),
+    )
+    conn.execute("delete from recurring_bill where id = %s", (b,))
+    assert conn.execute("select count(*) from recurring_bill_share").fetchone()[0] == 0
+
+
+def _pay(c, bill, purchase, year=2026, month=3, amount=1000):
+    c.execute(
+        "insert into bill_payment (bill_id, year, month, purchase_id, amount_cents)"
+        " values (%s, %s, %s, %s, %s)",
+        (bill, year, month, purchase, amount),
+    )
+
+
+def test_same_month_paid_twice_is_rejected(conn):
+    p, m = _bill_setup(conn)
+    b = _bill(conn, p, m)
+    _pay(conn, b, _purchase(conn, p, m))
+    with pytest.raises(errors.UniqueViolation):
+        _pay(conn, b, _purchase(conn, p, m))
+    _pay(conn, b, _purchase(conn, p, m), month=4)
+    with pytest.raises(errors.CheckViolation):
+        _pay(conn, b, _purchase(conn, p, m), month=13)
+
+
+def test_deleting_purchase_deletes_payment(conn):
+    p, m = _bill_setup(conn)
+    b = _bill(conn, p, m)
+    pur = _purchase(conn, p, m)
+    _pay(conn, b, pur)
+    conn.execute("delete from purchase where id = %s", (pur,))
+    assert conn.execute("select count(*) from bill_payment").fetchone()[0] == 0
+    assert conn.execute("select count(*) from recurring_bill").fetchone()[0] == 1

@@ -52,7 +52,7 @@ def test_existing_aliases_get_the_method_owner(conn, old_dir):
             (method, alias),
         )
 
-    assert migrate(URL) == ["004_apelido_por_dono.sql"]
+    assert migrate(URL) == ["004_apelido_por_dono.sql", "005_contas_fixas.sql"]
 
     rows = dict(conn.execute("select alias, owner_person_id from payment_method_alias"))
     assert rows == {"roxo": ana, "azul": bia}
