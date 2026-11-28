@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import {
   ApiError,
   type DraftSources,
@@ -73,7 +76,7 @@ export function DraftCard({
 
   function hint(field: string) {
     return sources?.[field] === "padrao" ? (
-      <small className="hint">{HINT}</small>
+      <small className="-mt-2 text-aviso">{HINT}</small>
     ) : null;
   }
 
@@ -124,34 +127,36 @@ export function DraftCard({
 
   if (saved) {
     return (
-      <li className="draft-card">
+      <li className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 text-card-foreground">
         <p>
-          Salvo como {saved}: {values.description} (R$ {values.amount})
+          Salvo como {saved}: {values.description} (R${" "}
+          <span className="font-display text-valor">{values.amount}</span>)
         </p>
       </li>
     );
   }
 
   return (
-    <li className="draft-card">
-      <label>
+    <li className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 text-card-foreground">
+      <label className="flex flex-col gap-2 font-semibold">
         Valor (R$)
-        <input
+        <Input
           inputMode="decimal"
+          className="font-display text-valor"
           value={values.amount}
           onChange={(e) => set("amount", e.target.value)}
         />
       </label>
-      <label>
+      <label className="flex flex-col gap-2 font-semibold">
         Descrição
-        <input
+        <Input
           value={values.description}
           onChange={(e) => set("description", e.target.value)}
         />
       </label>
-      <label>
+      <label className="flex flex-col gap-2 font-semibold">
         Meio de pagamento
-        <select
+        <Select
           value={values.methodId}
           onChange={(e) => set("methodId", e.target.value)}
         >
@@ -161,12 +166,12 @@ export function DraftCard({
               {m.name}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       {hint("method_id")}
-      <label>
+      <label className="flex flex-col gap-2 font-semibold">
         Data
-        <input
+        <Input
           type="date"
           value={values.date}
           onChange={(e) => set("date", e.target.value)}
@@ -174,9 +179,9 @@ export function DraftCard({
       </label>
       {hint("purchase_date")}
       {!isCash && (
-        <label>
+        <label className="flex flex-col gap-2 font-semibold">
           Parcelas
-          <input
+          <Input
             type="number"
             min={1}
             value={values.installments}
@@ -184,9 +189,9 @@ export function DraftCard({
           />
         </label>
       )}
-      <label>
+      <label className="flex flex-col gap-2 font-semibold">
         De quem é
-        <select
+        <Select
           value={values.ownerId}
           onChange={(e) => set("ownerId", e.target.value)}
         >
@@ -195,25 +200,31 @@ export function DraftCard({
               {p.name}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       {hint("person_id")}
       {error && (
-        <p role="alert" className="error">
+        <p role="alert" className="m-0 text-destructive">
           {error}
         </p>
       )}
-      <button type="button" disabled={saving} onClick={() => save("pendente")}>
-        Salvar como pendente
-      </button>
-      <button
+      <Button
         type="button"
-        className="secondary"
+        size="lg"
+        disabled={saving}
+        onClick={() => save("pendente")}
+      >
+        Salvar como pendente
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
         disabled={saving}
         onClick={() => save("conferido")}
       >
         Conferido
-      </button>
+      </Button>
     </li>
   );
 }

@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ApiError,
   createPurchase,
@@ -126,11 +128,15 @@ export function Entry({ personId }: Props) {
   }
 
   return (
-    <main className="entry">
-      <h1>Lançar gastos</h1>
-      <form onSubmit={handleParse}>
-        <label htmlFor="entry-text">Conte o gasto do jeito que vier</label>
-        <textarea
+    <main className="mx-auto max-w-[480px] p-4">
+      <h1 className="mb-4 font-display text-3xl font-semibold">
+        Lançar gastos
+      </h1>
+      <form onSubmit={handleParse} className="flex flex-col gap-2">
+        <label htmlFor="entry-text" className="font-semibold">
+          Conte o gasto do jeito que vier
+        </label>
+        <Textarea
           id="entry-text"
           rows={5}
           placeholder="Ex.: 120 no mercado no cartão X em 3x"
@@ -138,20 +144,20 @@ export function Entry({ personId }: Props) {
           onChange={(e) => setText(e.target.value)}
         />
         {error && (
-          <p role="alert" className="error">
+          <p role="alert" className="m-0 text-destructive">
             {error}
           </p>
         )}
-        <button type="submit" disabled={parsing || !text.trim()}>
+        <Button type="submit" size="lg" disabled={parsing || !text.trim()}>
           {parsing ? "Lendo…" : "Montar lançamentos"}
-        </button>
+        </Button>
       </form>
       {cards && (
         <section aria-label="Lançamentos para conferir">
           {manual && (
             <p>Não entendi a frase. Preencha os campos para lançar na mão.</p>
           )}
-          <ul className="drafts">
+          <ul className="mt-4 flex list-none flex-col gap-3 p-0">
             {cards.map((c) => (
               <DraftCard
                 key={`${round}-${c.key}`}

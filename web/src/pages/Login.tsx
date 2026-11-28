@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ApiError, login } from "../api";
 
 type Props = { onLoggedIn: (username: string) => void };
@@ -28,11 +30,13 @@ export function Login({ onLoggedIn }: Props) {
   }
 
   return (
-    <main className="login">
-      <h1>Nico</h1>
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="username">Usuário</label>
-        <input
+    <main className="mx-auto max-w-[400px] px-4 py-8">
+      <h1 className="mb-4 font-display text-3xl font-semibold">Nico</h1>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+        <label htmlFor="username" className="font-semibold">
+          Usuário
+        </label>
+        <Input
           id="username"
           name="username"
           autoComplete="username"
@@ -41,8 +45,10 @@ export function Login({ onLoggedIn }: Props) {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
-        <label htmlFor="password">Senha</label>
-        <input
+        <label htmlFor="password" className="font-semibold">
+          Senha
+        </label>
+        <Input
           id="password"
           name="password"
           type="password"
@@ -52,13 +58,13 @@ export function Login({ onLoggedIn }: Props) {
           onChange={(e) => setPassword(e.target.value)}
         />
         {error && (
-          <p role="alert" className="error">
+          <p role="alert" className="m-0 text-destructive">
             {error}
           </p>
         )}
-        <button type="submit" disabled={submitting}>
+        <Button type="submit" size="lg" disabled={submitting}>
           {submitting ? "Entrando…" : "Entrar"}
-        </button>
+        </Button>
       </form>
     </main>
   );

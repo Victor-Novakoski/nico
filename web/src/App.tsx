@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { logout, me, onUnauthorized } from "./api";
 import { Entry } from "./pages/Entry";
 import { Login } from "./pages/Login";
@@ -46,7 +47,8 @@ export function App() {
     setPage("entry");
   }
 
-  if (state.status === "loading") return <p className="loading">Carregando…</p>;
+  if (state.status === "loading")
+    return <p className="p-4 text-center text-muted-foreground">Carregando…</p>;
   if (state.status === "out") {
     return (
       <Login
@@ -68,33 +70,35 @@ export function App() {
   }
   return (
     <>
-      <nav className="nav">
-        <button
+      <nav className="flex gap-2 px-4 pt-4">
+        <Button
           type="button"
-          className={page === "entry" ? "" : "secondary"}
+          variant={page === "entry" ? "default" : "outline"}
+          className="flex-1"
           aria-current={page === "entry" ? "page" : undefined}
           onClick={() => setPage("entry")}
         >
           Lançar
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className={page === "payment-methods" ? "" : "secondary"}
+          variant={page === "payment-methods" ? "default" : "outline"}
+          className="flex-1"
           aria-current={page === "payment-methods" ? "page" : undefined}
           onClick={() => setPage("payment-methods")}
         >
           Meios de pagamento
-        </button>
+        </Button>
       </nav>
       {page === "payment-methods" ? (
         <PaymentMethods personId={state.personId} />
       ) : (
         <Entry personId={state.personId} />
       )}
-      <div className="logout">
-        <button type="button" className="secondary" onClick={handleLogout}>
+      <div className="flex justify-center p-4">
+        <Button type="button" variant="outline" onClick={handleLogout}>
           Sair
-        </button>
+        </Button>
       </div>
     </>
   );
