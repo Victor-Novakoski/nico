@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -66,6 +66,7 @@ export function DraftCard({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<PurchaseStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const methodRef = useRef<HTMLSelectElement>(null);
 
   const method = methods.find((m) => m.id === values.methodId);
   const isCash = method !== undefined && method.kind !== "credito";
@@ -78,6 +79,33 @@ export function DraftCard({
     return sources?.[field] === "padrao" ? (
       <small className="-mt-2 text-aviso">{HINT}</small>
     ) : null;
+  }
+
+  // Meio veio do padrão: aviso leve que abre a escolha do meio ao tocar.
+  function methodHint() {
+    if (sources?.method_id !== "padrao") return null;
+    return (
+      <button
+        type="button"
+        className="-mt-2 self-start font-display text-sm italic text-muted-foreground underline-offset-4 hover:underline"
+        onClick={openMethod}
+      >
+        seu principal, você não disse
+      </button>
+    );
+  }
+
+  function openMethod() {
+    const select = methodRef.current;
+    if (!select) return;
+    select.focus();
+    try {
+      (
+        select as HTMLSelectElement & { showPicker?: () => void }
+      ).showPicker?.();
+    } catch {
+      // Navegador sem showPicker ou sem gesto do usuário: o foco já basta.
+    }
   }
 
   async function save(status: PurchaseStatus) {
@@ -157,6 +185,7 @@ export function DraftCard({
       <label className="flex flex-col gap-2 font-semibold">
         Meio de pagamento
         <Select
+          ref={methodRef}
           value={values.methodId}
           onChange={(e) => set("methodId", e.target.value)}
         >
@@ -168,7 +197,7 @@ export function DraftCard({
           ))}
         </Select>
       </label>
-      {hint("method_id")}
+      {methodHint()}
       <label className="flex flex-col gap-2 font-semibold">
         Data
         <Input
