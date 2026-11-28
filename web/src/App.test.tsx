@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { App } from "./App";
 
 function jsonResponse(status: number, body?: unknown) {
@@ -40,17 +40,77 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
-  it("volta ao login depois de sair", async () => {
+  function stubSession() {
     const fetchMock = vi.fn((path: string) =>
       Promise.resolve(
         path === "/api/logout"
           ? jsonResponse(204)
-          : jsonResponse(200, { username: "ana", person_id: "p1" }),
+          : path === "/api/me"
+            ? jsonResponse(200, { username: "ana", person_id: "p1" })
+            : jsonResponse(200, []),
       ),
     );
     vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  function tab(name: string) {
+    return within(
+      screen.getByRole("navigation", { name: "Navegação" }),
+    ).getByRole("button", { name });
+  }
+
+  it("marca a aba ativa na barra de baixo", async () => {
+    stubSession();
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "Sair" }));
+    await screen.findByRole("heading", { name: "Lançar gastos" });
+    expect(tab("Lançar")).toHaveAttribute("aria-current", "page");
+    expect(tab("Conferir")).not.toHaveAttribute("aria-current");
+    fireEvent.click(tab("Conferir"));
+    expect(tab("Conferir")).toHaveAttribute("aria-current", "page");
+    expect(tab("Lançar")).not.toHaveAttribute("aria-current");
+  });
+
+  it("vai a Conferir", async () => {
+    stubSession();
+    render(<App />);
+    await screen.findByRole("heading", { name: "Lançar gastos" });
+    fireEvent.click(tab("Conferir"));
+    expect(
+      screen.getByRole("heading", { name: "Pra conferir" }),
+    ).toBeInTheDocument();
+  });
+
+  it("em Mês alterna entre Fatura e À vista", async () => {
+    stubSession();
+    render(<App />);
+    await screen.findByRole("heading", { name: "Lançar gastos" });
+    fireEvent.click(tab("Mês"));
+    expect(screen.getByRole("heading", { name: "Fatura" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "À vista" }));
+    expect(
+      screen.getByRole("heading", { name: "À vista" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fatura" }));
+    expect(screen.getByRole("heading", { name: "Fatura" })).toBeInTheDocument();
+  });
+
+  it("abre Configurações por Mais", async () => {
+    stubSession();
+    render(<App />);
+    await screen.findByRole("heading", { name: "Lançar gastos" });
+    fireEvent.click(tab("Mais"));
+    fireEvent.click(screen.getByRole("button", { name: "Configurações" }));
+    expect(
+      screen.getByRole("heading", { name: "Configurações" }),
+    ).toBeInTheDocument();
+  });
+
+  it("volta ao login depois de sair", async () => {
+    const fetchMock = stubSession();
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Mais" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sair" }));
     expect(
       await screen.findByRole("button", { name: "Entrar" }),
     ).toBeInTheDocument();
@@ -60,21 +120,11 @@ describe("App", () => {
     );
   });
 
-  it("abre a tela de meios de pagamento pelo menu", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((path: string) =>
-        Promise.resolve(
-          path === "/api/me"
-            ? jsonResponse(200, { username: "ana", person_id: "p1" })
-            : jsonResponse(200, []),
-        ),
-      ),
-    );
+  it("abre a tela de meios de pagamento por Mais", async () => {
+    stubSession();
     render(<App />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Meios de pagamento" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Mais" }));
+    fireEvent.click(screen.getByRole("button", { name: "Meios de pagamento" }));
     expect(
       await screen.findByRole("heading", { name: "Meios de pagamento" }),
     ).toBeInTheDocument();
