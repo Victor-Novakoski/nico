@@ -65,6 +65,35 @@ async function typeAndParse(text: string) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Entry", () => {
+  it("mostra a frase colorida com os trechos de cada rascunho", async () => {
+    const phrase = "120 mercado nubank 3x e 15 de pão";
+    mockApi({
+      understood: true,
+      drafts: [
+        { ...DRAFT, spans: [{ field: "amount_cents", start: 0, end: 3 }] },
+        {
+          ...DRAFT,
+          description: "pão",
+          amount_cents: 1500,
+          spans: [{ field: "amount_cents", start: 24, end: 26 }],
+        },
+      ],
+    });
+    await typeAndParse(phrase);
+    await screen.findAllByLabelText("Descrição");
+    const valores = [
+      ...document.querySelectorAll('[data-field="amount_cents"]'),
+    ].map((el) => el.textContent);
+    expect(valores).toEqual(["120", "15"]);
+  });
+
+  it("sem frase entendida (formulário manual) não mostra a frase colorida", async () => {
+    mockApi({ understood: false, drafts: [] });
+    await typeAndParse("comprei uma coisa ontem");
+    await screen.findAllByLabelText("Descrição");
+    expect(document.querySelector("[data-field]")).toBeNull();
+  });
+
   it("frase entendida vira um cartão editável", async () => {
     mockApi({ understood: true, drafts: [DRAFT] });
     await typeAndParse("120 mercado nubank 3x");

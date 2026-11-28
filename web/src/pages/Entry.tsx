@@ -16,7 +16,8 @@ import {
   type DraftValues,
   type SaveInput,
 } from "../components/DraftCard";
-import type { DraftSources, PurchaseStatus } from "../api";
+import { PhraseHighlight } from "../components/PhraseHighlight";
+import type { DraftSources, DraftSpan, PurchaseStatus } from "../api";
 
 type Props = { personId: string | null };
 
@@ -38,6 +39,10 @@ export function Entry({ personId }: Props) {
   const [cards, setCards] = useState<Card[] | null>(null);
   const [manual, setManual] = useState(false);
   const [round, setRound] = useState(0);
+  const [highlight, setHighlight] = useState<{
+    phrase: string;
+    spans: DraftSpan[];
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -70,6 +75,7 @@ export function Entry({ personId }: Props) {
       setRound((r) => r + 1);
       if (empty) {
         setManual(true);
+        setHighlight(null);
         setCards([
           {
             key: "manual",
@@ -85,6 +91,10 @@ export function Entry({ personId }: Props) {
         ]);
       } else {
         setManual(false);
+        setHighlight({
+          phrase,
+          spans: result.drafts.flatMap((d) => d.spans ?? []),
+        });
         setCards(
           result.drafts.map((d, i) => ({
             key: `draft-${i}`,
@@ -154,6 +164,14 @@ export function Entry({ personId }: Props) {
       </form>
       {cards && (
         <section aria-label="Lançamentos para conferir">
+          {highlight && !manual && (
+            <div className="mt-4 rounded-2xl border bg-card p-4">
+              <PhraseHighlight
+                phrase={highlight.phrase}
+                spans={highlight.spans}
+              />
+            </div>
+          )}
           {manual && (
             <p>Não entendi a frase. Preencha os campos para lançar na mão.</p>
           )}
