@@ -4,6 +4,7 @@ from nico.auth import current_user
 from nico.db import lifespan
 from nico.routes import (
     drafts,
+    groups,
     invoices,
     month,
     payment_methods,
@@ -27,6 +28,7 @@ def health() -> dict[str, bool]:
 
 # Login é aberto; logout e /me exigem login por conta própria.
 app.include_router(session.router)
+app.include_router(groups.router, dependencies=PROTECTED)
 app.include_router(people.router, dependencies=PROTECTED)
 app.include_router(payment_methods.router, dependencies=PROTECTED)
 app.include_router(drafts.router, dependencies=PROTECTED)
