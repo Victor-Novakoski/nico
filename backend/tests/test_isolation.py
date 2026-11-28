@@ -377,7 +377,7 @@ def test_patch_shares_and_method_follow_scope(world):
         == 200
     )
     assert ana.patch(url, json={"payment_method_id": world.card["Bia"]}).status_code == 422
-    assert ana.patch(url, json={"group_id": world.group_b}).status_code == 422
+    assert ana.patch(url, json={"group_id": world.group_b}).status_code == 404
     personal = _buy(ana, world.card["Ana"])
     assert (
         ana.patch(

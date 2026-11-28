@@ -205,12 +205,13 @@ def update_purchase(conn: psycopg.Connection, id: UUID, **changes: Any) -> bool:
     """Edição parcial; `False` se a compra não existe. Não faz commit.
 
     Aceita `description`, `status`, `total_cents`, `payment_method_id`, `purchase_date`,
-    `installments` e `shares` (`{person_id: weight}`; vazio vira quem lançou, peso 1). Mudar
+    `installments`, `shares` (`{person_id: weight}`; vazio vira quem lançou, peso 1) e `group_id`
+    (`None` volta a compra para o pessoal; quem chama valida a participação). Mudar
     valor, meio, data ou parcelas apaga as parcelas e as refaz, reaproveitando faturas já
     existentes (que mantêm as datas gravadas, decisão 004); faturas que ficam sem parcela não
     são apagadas. As mesmas validações da criação valem aqui (`ValueError`).
     """
-    unknown = set(changes) - {*REBUILD_FIELDS, *PLAIN_FIELDS, "shares"}
+    unknown = set(changes) - {*REBUILD_FIELDS, *PLAIN_FIELDS, "shares", "group_id"}
     if unknown:
         raise ValueError(f"campos desconhecidos: {sorted(unknown)}")
     row = conn.execute(
@@ -235,7 +236,7 @@ def update_purchase(conn: psycopg.Connection, id: UUID, **changes: Any) -> bool:
             strict=True,
         )
     )
-    merged = {**current, **{k: v for k, v in changes.items() if k != "shares"}}
+    merged = {**current, **{k: v for k, v in changes.items() if k not in ("shares", "group_id")}}
     if merged["status"] not in STATUSES:
         raise ValueError(f"status deve ser um de {STATUSES}, recebido {merged['status']!r}")
     shares = changes.get("shares")
@@ -265,6 +266,8 @@ def update_purchase(conn: psycopg.Connection, id: UUID, **changes: Any) -> bool:
             id,
         ),
     )
+    if "group_id" in changes:
+        conn.execute("update purchase set group_id = %s where id = %s", (changes["group_id"], id))
     if rebuild:
         conn.execute("delete from installment where purchase_id = %s", (id,))
         _insert_installments(conn, id, merged["payment_method_id"], schedule)
