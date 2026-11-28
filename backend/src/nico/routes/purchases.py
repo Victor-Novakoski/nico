@@ -49,7 +49,7 @@ class PurchaseIn(BaseModel):
 
 
 class PurchasePatch(BaseModel):
-    """Campos ausentes ficam como estão; `null` explícito é recusado (nenhum campo é anulável)."""
+    """Campos ausentes ficam como estão; `null` explícito é recusado, salvo em `group_id`."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -60,6 +60,7 @@ class PurchasePatch(BaseModel):
     installments: Installments = None  # type: ignore[assignment]
     status: Status = None  # type: ignore[assignment]
     shares: list[ShareIn] = None  # type: ignore[assignment]
+    group_id: UUID | None = None  # `null` explícito devolve a compra para o pessoal
 
     @model_validator(mode="after")
     def _not_empty(self) -> "PurchasePatch":
@@ -195,12 +196,14 @@ def patch_purchase(purchase_id: UUID, body: PurchasePatch, conn: Conn, user: Use
     me = UUID(user.person_id)
     if not scope.can_edit_purchase(conn, me, purchase_id):
         raise _not_found()
-    group_id, owner_id = conn.execute(
-        "select p.group_id, pm.owner_person_id from purchase p"
+    group_id, owner_id, created_by = conn.execute(
+        "select p.group_id, pm.owner_person_id, p.created_by_person_id from purchase p"
         " join payment_method pm on pm.id = p.payment_method_id where p.id = %s",
         (purchase_id,),
     ).fetchone()
-    changes: dict[str, Any] = {k: getattr(body, k) for k in body.model_fields_set if k != "shares"}
+    changes: dict[str, Any] = {
+        k: getattr(body, k) for k in body.model_fields_set if k not in ("shares", "group_id")
+    }
     if "payment_method_id" in changes:
         # O meio novo tem que ser do dono atual do meio da compra ou de quem edita.
         new_owner = conn.execute(
@@ -209,9 +212,26 @@ def patch_purchase(purchase_id: UUID, body: PurchasePatch, conn: Conn, user: Use
         ).fetchone()
         if new_owner is None or new_owner[0] not in (owner_id, me):
             raise _method_not_found()
+        final_owner = new_owner[0]
+    else:
+        final_owner = owner_id
+    target_group = group_id
+    if "group_id" in body.model_fields_set:
+        target_group = body.group_id
+        if target_group is not None and not scope.is_member(conn, me, target_group):
+            raise HTTPException(status_code=404, detail="Grupo não encontrado")
+        if target_group != group_id:
+            # Mudar o escopo só cabe a quem lançou e paga com o próprio meio: senão o dono do
+            # meio tiraria a compra de quem lançou, ou o cartão de um não-membro entraria no grupo.
+            if me != created_by or final_owner != me:
+                raise _not_found()
+            changes["group_id"] = target_group
+    members = None if target_group is None else scope.group_members(conn, target_group)
     if "shares" in body.model_fields_set:
-        members = None if group_id is None else scope.group_members(conn, group_id)
         changes["shares"] = _shares_dict(body.shares, me, members)
+    elif "group_id" in changes:
+        # Mudou de escopo sem nova divisão: partes iguais entre os membros, ou só quem lançou.
+        changes["shares"] = {} if members is None else dict.fromkeys(members, 1)
     try:
         found = purchases.update_purchase(conn, purchase_id, **changes)
     except ValueError as error:
