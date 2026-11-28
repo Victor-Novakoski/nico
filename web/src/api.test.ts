@@ -5,6 +5,13 @@ import {
   addAlias,
   apiFetch,
   createPaymentMethod,
+  getCashMonth,
+  getCurrentInvoice,
+  getInvoice,
+  getSettings,
+  listPurchases,
+  updatePurchase,
+  updateSettings,
   listPaymentMethods,
   listPeople,
   login,
@@ -143,5 +150,62 @@ describe("meios de pagamento", () => {
     const [path, init] = fetchMock.mock.calls[0];
     expect(path).toBe("/api/payment-methods/m1/aliases");
     expect(JSON.parse(init.body)).toEqual({ alias: "roxo" });
+  });
+});
+
+describe("telas do marco 2", () => {
+  it("lista compras sem filtro e com filtro de status", async () => {
+    const fetchMock = mockFetch(reply(200, []));
+    await listPurchases();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/purchases");
+    fetchMock.mockResolvedValue(reply(200, []));
+    await listPurchases("pendente");
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/purchases?status=pendente");
+  });
+
+  it("edita compra com PATCH e corpo JSON", async () => {
+    const fetchMock = mockFetch(reply(200, { id: "c1" }));
+    await updatePurchase("c1", { status: "conferido" });
+    const [path, init] = fetchMock.mock.calls[0];
+    expect(path).toBe("/api/purchases/c1");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body)).toEqual({ status: "conferido" });
+  });
+
+  it("busca a fatura atual do meio", async () => {
+    const fetchMock = mockFetch(reply(200, {}));
+    await getCurrentInvoice("m1");
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/api/payment-methods/m1/invoices/current",
+    );
+  });
+
+  it("busca a fatura de um mês", async () => {
+    const fetchMock = mockFetch(reply(200, {}));
+    await getInvoice("m1", 2026, 12);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/api/payment-methods/m1/invoices/2026/12",
+    );
+  });
+
+  it("busca os gastos à vista do mês", async () => {
+    const fetchMock = mockFetch(reply(200, {}));
+    await getCashMonth(2026, 11);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/months/2026/11/cash");
+  });
+
+  it("lê e edita as configurações", async () => {
+    const fetchMock = mockFetch(reply(200, {}));
+    await getSettings();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/me/settings");
+    fetchMock.mockResolvedValue(reply(200, {}));
+    await updateSettings({ ai_enabled: false, default_method_id: null });
+    const [path, init] = fetchMock.mock.calls[1];
+    expect(path).toBe("/api/me/settings");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body)).toEqual({
+      ai_enabled: false,
+      default_method_id: null,
+    });
   });
 });

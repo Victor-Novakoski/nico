@@ -188,3 +188,140 @@ export function createPurchase(data: NewPurchase): Promise<{ id: string }> {
     body: JSON.stringify(data),
   });
 }
+
+export type PurchaseShare = { person_id: string; weight: number };
+
+export type PurchaseInstallment = {
+  number: number;
+  amount_cents: number;
+  invoice: {
+    year: number;
+    month: number;
+    closing_date: string;
+    due_date: string;
+  };
+};
+
+export type Purchase = {
+  id: string;
+  payment_method_id: string;
+  group_id: string | null;
+  description: string;
+  total_cents: number;
+  purchase_date: string;
+  installments: number;
+  status: PurchaseStatus;
+  created_by_person_id: string;
+  shares: PurchaseShare[];
+  installments_list: PurchaseInstallment[];
+};
+
+export type PurchasePatch = {
+  description?: string;
+  total_cents?: number;
+  payment_method_id?: string;
+  purchase_date?: string;
+  installments?: number;
+  status?: PurchaseStatus;
+  shares?: PurchaseShare[];
+  group_id?: string | null;
+};
+
+export function listPurchases(status?: PurchaseStatus): Promise<Purchase[]> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiFetch<Purchase[]>(`/api/purchases${query}`);
+}
+
+export function updatePurchase(
+  id: string,
+  data: PurchasePatch,
+): Promise<Purchase> {
+  return apiFetch<Purchase>(`/api/purchases/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export type InvoiceItem = {
+  purchase_id: string;
+  description: string;
+  purchase_date: string;
+  installment_number: number;
+  installments: number;
+  amount_cents: number;
+  status: PurchaseStatus;
+  shares: Record<string, number>;
+};
+
+export type Invoice = {
+  payment_method_id: string;
+  year: number;
+  month: number;
+  closing_date: string;
+  due_date: string;
+  exists: boolean;
+  total_cents: number;
+  per_person: Record<string, number>;
+  pending_count: number;
+  items: InvoiceItem[];
+};
+
+export function getCurrentInvoice(methodId: string): Promise<Invoice> {
+  return apiFetch<Invoice>(
+    `/api/payment-methods/${encodeURIComponent(methodId)}/invoices/current`,
+  );
+}
+
+export function getInvoice(
+  methodId: string,
+  year: number,
+  month: number,
+): Promise<Invoice> {
+  return apiFetch<Invoice>(
+    `/api/payment-methods/${encodeURIComponent(methodId)}/invoices/${year}/${month}`,
+  );
+}
+
+export type CashItem = {
+  purchase_id: string;
+  description: string;
+  purchase_date: string;
+  amount_cents: number;
+  status: PurchaseStatus;
+  payment_method_id: string;
+  shares: Record<string, number>;
+};
+
+export type CashMonth = {
+  year: number;
+  month: number;
+  total_cents: number;
+  per_person: Record<string, number>;
+  pending_count: number;
+  items: CashItem[];
+};
+
+export function getCashMonth(year: number, month: number): Promise<CashMonth> {
+  return apiFetch<CashMonth>(`/api/months/${year}/${month}/cash`);
+}
+
+export type Settings = {
+  default_method_id: string | null;
+  ai_enabled: boolean;
+};
+
+export type SettingsPatch = {
+  default_method_id?: string | null;
+  ai_enabled?: boolean;
+};
+
+export function getSettings(): Promise<Settings> {
+  return apiFetch<Settings>("/api/me/settings");
+}
+
+export function updateSettings(data: SettingsPatch): Promise<Settings> {
+  return apiFetch<Settings>("/api/me/settings", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
