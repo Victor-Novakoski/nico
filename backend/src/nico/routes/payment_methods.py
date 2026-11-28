@@ -116,12 +116,13 @@ def add_alias(method_id: UUID, body: AliasIn, conn: Conn, user: User) -> Payment
         raise HTTPException(status_code=422, detail="Apelido vazio")
     try:
         conn.execute(
-            "insert into payment_method_alias (payment_method_id, alias) values (%s, %s)",
-            (method_id, alias),
+            "insert into payment_method_alias (payment_method_id, owner_person_id, alias)"
+            " values (%s, %s, %s)",
+            (method_id, user.person_id, alias),
         )
     except psycopg.errors.UniqueViolation:
-        # TODO: índice único de apelido é global; deveria ser por dono (o 409 vaza apelido alheio).
+        # O índice é por dono (migração 004): só colide com apelido de um meio da própria pessoa.
         raise HTTPException(
-            status_code=409, detail="Apelido já usado em outro meio de pagamento"
+            status_code=409, detail="Você já usa esse apelido em um meio de pagamento"
         ) from None
     return _fetch(conn, method_id, user.person_id)

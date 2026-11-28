@@ -112,7 +112,7 @@ def test_duplicate_alias_is_409(logged_client, second):
     )
     response = logged_client.post(f"{URL}/{other['id']}/aliases", json={"alias": second})
     assert response.status_code == 409
-    assert response.json()["detail"] == "Apelido já usado em outro meio de pagamento"
+    assert response.json()["detail"] == "Você já usa esse apelido em um meio de pagamento"
     by_id = {m["id"]: m for m in logged_client.get(URL).json()}
     assert by_id[other["id"]]["aliases"] == []
     assert by_id[first["id"]]["aliases"] == ["azul"]

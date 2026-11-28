@@ -62,6 +62,7 @@ Login: `POST /api/login` grava o cookie `nico_session` (HttpOnly, Secure, SameSi
 - Com `due_day > closing_day`, num mês curto fechamento e vencimento podem cair no mesmo dia (fecha 30 e vence 31 em fevereiro: os dois em 28/02).
 
 - Migração já aplicada não se edita: crie a próxima (`002_...sql`). O arquivo é registrado pelo nome.
+- Apelido de meio é único por dono (migração 004), não no banco todo: o insert em `payment_method_alias` precisa de `owner_person_id`, e a chave composta `(payment_method_id, owner_person_id)` garante que é o dono do meio.
 - `invoice` só aceita meio de crédito por chave estrangeira composta `(payment_method_id, kind)`; `purchase`/`installment` não impõem isso no banco (quem grava parcelas só chama o cálculo para crédito).
 - Fixture `db_url` (`tests/conftest.py`): recria o schema, migra e devolve a URL; use nos testes de banco. Pula sem a variável.
 - O fixture de teste faz `drop schema public cascade`: use só o Postgres descartável, nunca um banco real.
