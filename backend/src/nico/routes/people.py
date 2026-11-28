@@ -28,19 +28,25 @@ class PersonOut(BaseModel):
     name: str
 
 
+def add_person(conn: psycopg.Connection, name: str, group_id: UUID | None) -> tuple[UUID, str]:
+    """Cria a pessoa (sem login); com `group_id`, ela entra no grupo como membro."""
+    row = conn.execute(
+        "insert into person (name) values (%s) returning id, name", (name,)
+    ).fetchone()
+    if group_id is not None:
+        conn.execute(
+            "insert into group_member (group_id, person_id, role) values (%s, %s, 'membro')",
+            (group_id, row[0]),
+        )
+    return row
+
+
 @router.post("", status_code=201)
 def create_person(body: PersonIn, conn: Conn, user: User) -> PersonOut:
     """Com `group_id`, a pessoa nova entra no grupo como membro; sem ele, fica sem grupo."""
     if body.group_id is not None and not scope.is_member(conn, user.person_id, body.group_id):
         raise HTTPException(status_code=404, detail="Grupo não encontrado")
-    row = conn.execute(
-        "insert into person (name) values (%s) returning id, name", (body.name,)
-    ).fetchone()
-    if body.group_id is not None:
-        conn.execute(
-            "insert into group_member (group_id, person_id, role) values (%s, %s, 'membro')",
-            (body.group_id, row[0]),
-        )
+    row = add_person(conn, body.name, body.group_id)
     return PersonOut(id=row[0], name=row[1])
 
 
