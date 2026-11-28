@@ -1,4 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import {
   ApiError,
   addAlias,
@@ -117,31 +120,41 @@ export function PaymentMethods({ personId }: Props) {
   }
 
   return (
-    <section className="methods">
-      <h1>Meios de pagamento</h1>
+    <section className="mx-auto max-w-[480px] p-4">
+      <h1 className="mb-4 font-display text-3xl font-semibold">
+        Meios de pagamento
+      </h1>
       {loading ? (
         <p>Carregando…</p>
       ) : methods.length === 0 ? (
         <p>Nenhum meio de pagamento cadastrado ainda.</p>
       ) : (
-        <ul>
+        <ul className="mb-6 flex list-none flex-col gap-3 p-0">
           {methods.map((m) => (
-            <li key={m.id}>
-              <strong>{m.name}</strong>
-              <p className="meta">
+            <li
+              key={m.id}
+              className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 text-card-foreground"
+            >
+              <strong className="font-display text-lg">{m.name}</strong>
+              <p className="my-1 text-muted-foreground">
                 {KIND_LABELS[m.kind]}
                 {m.kind === "credito" &&
                   ` · fecha dia ${m.closing_day}, vence dia ${m.due_day}`}
                 {` · de ${personName(m.owner_id)}`}
               </p>
               {m.aliases.length > 0 && (
-                <p className="meta">Apelidos: {m.aliases.join(", ")}</p>
+                <p className="my-1 text-muted-foreground">
+                  Apelidos: {m.aliases.join(", ")}
+                </p>
               )}
-              <form className="alias-form" onSubmit={(e) => handleAlias(e, m)}>
+              <form
+                className="mt-2 flex flex-col gap-2"
+                onSubmit={(e) => handleAlias(e, m)}
+              >
                 <label htmlFor={`alias-${m.id}`}>
                   Novo apelido de {m.name}
                 </label>
-                <input
+                <Input
                   id={`alias-${m.id}`}
                   value={aliasDrafts[m.id] ?? ""}
                   onChange={(e) =>
@@ -149,30 +162,36 @@ export function PaymentMethods({ personId }: Props) {
                   }
                 />
                 {aliasError?.id === m.id && (
-                  <p role="alert" className="error">
+                  <p role="alert" className="m-0 text-destructive">
                     {aliasError.message}
                   </p>
                 )}
-                <button type="submit" className="secondary">
+                <Button type="submit" variant="outline">
                   Adicionar apelido
-                </button>
+                </Button>
               </form>
             </li>
           ))}
         </ul>
       )}
 
-      <h2>Novo meio de pagamento</h2>
-      <form onSubmit={handleCreate}>
-        <label htmlFor="pm-name">Nome</label>
-        <input
+      <h2 className="mb-2 font-display text-xl font-semibold">
+        Novo meio de pagamento
+      </h2>
+      <form onSubmit={handleCreate} className="flex flex-col gap-2">
+        <label htmlFor="pm-name" className="font-semibold">
+          Nome
+        </label>
+        <Input
           id="pm-name"
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <label htmlFor="pm-owner">Dono</label>
-        <select
+        <label htmlFor="pm-owner" className="font-semibold">
+          Dono
+        </label>
+        <Select
           id="pm-owner"
           value={selectedOwner}
           onChange={(e) => setOwnerId(e.target.value)}
@@ -182,9 +201,11 @@ export function PaymentMethods({ personId }: Props) {
               {p.name}
             </option>
           ))}
-        </select>
-        <label htmlFor="pm-kind">Tipo</label>
-        <select
+        </Select>
+        <label htmlFor="pm-kind" className="font-semibold">
+          Tipo
+        </label>
+        <Select
           id="pm-kind"
           value={kind}
           onChange={(e) => setKind(e.target.value as Kind)}
@@ -194,11 +215,13 @@ export function PaymentMethods({ personId }: Props) {
               {KIND_LABELS[k]}
             </option>
           ))}
-        </select>
+        </Select>
         {kind === "credito" && (
           <>
-            <label htmlFor="pm-closing">Dia de fechamento (1 a 31)</label>
-            <input
+            <label htmlFor="pm-closing" className="font-semibold">
+              Dia de fechamento (1 a 31)
+            </label>
+            <Input
               id="pm-closing"
               type="number"
               inputMode="numeric"
@@ -208,8 +231,10 @@ export function PaymentMethods({ personId }: Props) {
               value={closingDay}
               onChange={(e) => setClosingDay(e.target.value)}
             />
-            <label htmlFor="pm-due">Dia de vencimento (1 a 31)</label>
-            <input
+            <label htmlFor="pm-due" className="font-semibold">
+              Dia de vencimento (1 a 31)
+            </label>
+            <Input
               id="pm-due"
               type="number"
               inputMode="numeric"
@@ -222,13 +247,13 @@ export function PaymentMethods({ personId }: Props) {
           </>
         )}
         {error && (
-          <p role="alert" className="error">
+          <p role="alert" className="m-0 text-destructive">
             {error}
           </p>
         )}
-        <button type="submit" disabled={submitting || !selectedOwner}>
+        <Button type="submit" size="lg" disabled={submitting || !selectedOwner}>
           {submitting ? "Salvando…" : "Cadastrar"}
-        </button>
+        </Button>
       </form>
     </section>
   );
