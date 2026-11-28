@@ -27,6 +27,8 @@ TABLES = {
     "recurring_bill",
     "recurring_bill_share",
     "bill_payment",
+    "recurring_income",
+    "income",
     "schema_migrations",
 }
 
@@ -69,6 +71,7 @@ def test_migrate_is_idempotent(conn):
         ("003_escopo.sql",),
         ("004_apelido_por_dono.sql",),
         ("005_contas_fixas.sql",),
+        ("006_renda.sql",),
     ]
     tables = {
         r[0] for r in conn.execute("select tablename from pg_tables where schemaname = 'public'")
@@ -86,6 +89,7 @@ def test_first_run_reports_applied_file():
         "003_escopo.sql",
         "004_apelido_por_dono.sql",
         "005_contas_fixas.sql",
+        "006_renda.sql",
     ]
 
 
@@ -386,3 +390,91 @@ def test_deleting_purchase_deletes_payment(conn):
     conn.execute("delete from purchase where id = %s", (pur,))
     assert conn.execute("select count(*) from bill_payment").fetchone()[0] == 0
     assert conn.execute("select count(*) from recurring_bill").fetchone()[0] == 1
+
+
+def _recurring_income(c, person, **extra) -> uuid.UUID:
+    cols = {"person_id": person, "name": "Salário", "day": 5}
+    cols.update(extra)
+    names = ", ".join(cols)
+    marks = ", ".join(["%s"] * len(cols))
+    return c.execute(
+        f"insert into recurring_income ({names}) values ({marks}) returning id",
+        tuple(cols.values()),
+    ).fetchone()[0]
+
+
+def _income(c, person, **extra) -> uuid.UUID:
+    cols = {
+        "id": uuid.uuid4(),
+        "person_id": person,
+        "description": "Freela",
+        "amount_cents": 5000,
+        "received_on": "2026-03-05",
+    }
+    cols.update(extra)
+    names = ", ".join(cols)
+    marks = ", ".join(["%s"] * len(cols))
+    c.execute(f"insert into income ({names}) values ({marks})", tuple(cols.values()))
+    return cols["id"]
+
+
+def test_recurring_income_defaults_and_nullable_amount(conn):
+    p = _person(conn)
+    r = _recurring_income(conn, p)
+    row = conn.execute(
+        "select active, amount_cents from recurring_income where id = %s", (r,)
+    ).fetchone()
+    assert row == (True, None)
+    _recurring_income(conn, p, amount_cents=300000)
+
+
+def test_recurring_income_zero_amount_empty_name_and_bad_day_are_rejected(conn):
+    p = _person(conn)
+    with pytest.raises(errors.CheckViolation):
+        _recurring_income(conn, p, amount_cents=0)
+    with pytest.raises(errors.CheckViolation):
+        _recurring_income(conn, p, name="  ")
+    for day in (0, 32):
+        with pytest.raises(errors.CheckViolation):
+            _recurring_income(conn, p, day=day)
+
+
+def test_income_defaults_and_zero_amount_is_rejected(conn):
+    p = _person(conn)
+    i = _income(conn, p)
+    row = conn.execute("select status from income where id = %s", (i,)).fetchone()
+    assert row == ("pendente",)
+    with pytest.raises(errors.CheckViolation):
+        _income(conn, p, amount_cents=0)
+    with pytest.raises(errors.CheckViolation):
+        _income(conn, p, status="outro")
+
+
+def test_income_repeated_client_id_is_rejected(conn):
+    p = _person(conn)
+    i = _income(conn, p)
+    with pytest.raises(errors.UniqueViolation):
+        _income(conn, p, id=i)
+
+
+def test_same_month_of_recurring_income_received_twice_is_rejected(conn):
+    p = _person(conn)
+    r = _recurring_income(conn, p)
+    _income(conn, p, recurring_income_id=r, year=2026, month=3)
+    with pytest.raises(errors.UniqueViolation):
+        _income(conn, p, recurring_income_id=r, year=2026, month=3)
+    _income(conn, p, recurring_income_id=r, year=2026, month=4)
+    with pytest.raises(errors.CheckViolation):
+        _income(conn, p, recurring_income_id=r, year=2026, month=13)
+    # avulsas (sem renda fixa) não se atropelam
+    _income(conn, p)
+    _income(conn, p)
+
+
+def test_income_linked_to_recurring_requires_year_and_month(conn):
+    p = _person(conn)
+    r = _recurring_income(conn, p)
+    with pytest.raises(errors.CheckViolation):
+        _income(conn, p, recurring_income_id=r)
+    with pytest.raises(errors.CheckViolation):
+        _income(conn, p, recurring_income_id=r, year=2026)
