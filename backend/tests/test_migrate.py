@@ -60,7 +60,12 @@ def _purchase(c, person, method, total=1000, purchase_id=None) -> uuid.UUID:
 def test_migrate_is_idempotent(conn):
     assert migrate(URL) == []
     rows = conn.execute("select name from schema_migrations").fetchall()
-    assert rows == [("001_init.sql",), ("002_grupos.sql",), ("003_escopo.sql",)]
+    assert rows == [
+        ("001_init.sql",),
+        ("002_grupos.sql",),
+        ("003_escopo.sql",),
+        ("004_apelido_por_dono.sql",),
+    ]
     tables = {
         r[0] for r in conn.execute("select tablename from pg_tables where schemaname = 'public'")
     }
@@ -71,7 +76,12 @@ def test_first_run_reports_applied_file():
     with psycopg.connect(URL, autocommit=True) as setup:
         setup.execute("drop schema public cascade")
         setup.execute("create schema public")
-    assert migrate(URL) == ["001_init.sql", "002_grupos.sql", "003_escopo.sql"]
+    assert migrate(URL) == [
+        "001_init.sql",
+        "002_grupos.sql",
+        "003_escopo.sql",
+        "004_apelido_por_dono.sql",
+    ]
 
 
 def test_negative_total_is_rejected(conn):
@@ -103,18 +113,36 @@ def test_unknown_kind_is_rejected(conn):
         _method(conn, p, "cheque", closing=None, due=None)
 
 
-def test_alias_is_unique_ignoring_case(conn):
+def _alias(conn, method_id, alias):
+    conn.execute(
+        "insert into payment_method_alias (payment_method_id, owner_person_id, alias)"
+        " select id, owner_person_id, %s from payment_method where id = %s",
+        (alias, method_id),
+    )
+
+
+def test_alias_is_unique_per_owner_ignoring_case(conn):
     p = _person(conn)
     m1 = _method(conn, p)
     m2 = _method(conn, p)
-    conn.execute(
-        "insert into payment_method_alias (payment_method_id, alias) values (%s, 'Roxinho')",
-        (m1,),
-    )
+    _alias(conn, m1, "Roxinho")
     with pytest.raises(errors.UniqueViolation):
+        _alias(conn, m2, "roxinho")
+
+
+def test_same_alias_for_different_owners(conn):
+    _alias(conn, _method(conn, _person(conn)), "nubank")
+    _alias(conn, _method(conn, _person(conn)), "Nubank")
+
+
+def test_alias_owner_must_be_the_method_owner(conn):
+    method = _method(conn, _person(conn))
+    stranger = _person(conn)
+    with pytest.raises(errors.ForeignKeyViolation):
         conn.execute(
-            "insert into payment_method_alias (payment_method_id, alias) values (%s, 'roxinho')",
-            (m2,),
+            "insert into payment_method_alias (payment_method_id, owner_person_id, alias)"
+            " values (%s, %s, 'alheio')",
+            (method, stranger),
         )
 
 

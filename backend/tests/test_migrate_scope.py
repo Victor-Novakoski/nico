@@ -76,7 +76,7 @@ def test_existing_data_moves_to_home_group(conn, old_dir):
     bare = _purchase(conn, caio, method, "sem partes")
     before = conn.execute("select count(*) from purchase").fetchone()[0]
 
-    assert migrate(URL) == ["003_escopo.sql"]
+    assert migrate(URL)[0] == "003_escopo.sql"
 
     groups = _groups(conn)
     assert len(groups) == 1
@@ -107,7 +107,7 @@ def test_owner_without_app_user_is_lowest_id(conn, old_dir):
 
 
 def test_empty_database_creates_no_group(conn):
-    assert migrate(URL)[-1] == "003_escopo.sql"
+    assert "003_escopo.sql" in migrate(URL)
     assert _groups(conn) == []
 
 

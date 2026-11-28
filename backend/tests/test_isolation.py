@@ -522,3 +522,19 @@ def test_ai_gets_only_own_methods_and_visible_people(world):
     [context] = seen
     assert {m.id for m in context.methods} == {world.card["Ana"], world.pix["Ana"]}
     assert {p.id for p in context.people} == {world.ids["Ana"], world.ids["Caio"]}
+
+
+def test_same_alias_for_different_people_without_leaking(world):
+    # Apelido é único por dono (migração 004): o 409 nunca revela o apelido de outra pessoa.
+    for who in ("Ana", "Bia", "Caio"):
+        response = world.c[who].post(
+            f"/api/payment-methods/{world.card[who]}/aliases", json={"alias": "nubank"}
+        )
+        assert response.status_code == 201, response.text
+    again = world.c["Ana"].post(
+        f"/api/payment-methods/{world.pix['Ana']}/aliases", json={"alias": "Nubank"}
+    )
+    assert again.status_code == 409
+    for who in ("Ana", "Bia", "Caio"):
+        [draft] = _parse(world.c[who], "50 mercado no nubank")["drafts"]
+        assert draft["method_id"] == world.card[who]
